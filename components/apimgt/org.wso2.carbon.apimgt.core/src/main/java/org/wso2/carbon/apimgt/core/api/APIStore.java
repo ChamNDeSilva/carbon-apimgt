@@ -23,8 +23,12 @@ package org.wso2.carbon.apimgt.core.api;
 import org.wso2.carbon.apimgt.core.exception.APIManagementException;
 import org.wso2.carbon.apimgt.core.models.API;
 import org.wso2.carbon.apimgt.core.models.Application;
+import org.wso2.carbon.apimgt.core.models.ApplicationCreationResponse;
+import org.wso2.carbon.apimgt.core.models.Comment;
 import org.wso2.carbon.apimgt.core.models.Label;
+import org.wso2.carbon.apimgt.core.models.Rating;
 import org.wso2.carbon.apimgt.core.models.Subscription;
+import org.wso2.carbon.apimgt.core.models.SubscriptionResponse;
 import org.wso2.carbon.apimgt.core.models.Tag;
 import org.wso2.carbon.apimgt.core.models.policy.Policy;
 
@@ -44,7 +48,7 @@ public interface APIStore extends APIManager {
      * @param offset offset
      * @param limit  limit
      * @param status One or more Statuses
-     * @return List<API>
+     * @return {@code List<API>}
      * @throws APIManagementException if failed to API set
      */
     List<API> getAllAPIsByStatus(int offset, int limit, String[] status) throws APIManagementException;
@@ -54,8 +58,9 @@ public interface APIStore extends APIManager {
      *
      * @param query searchType
      * @param limit limit
-     * @return List<API>
-     * @throws APIManagementException
+     * @param offset offset
+     * @return {@code List<API>}
+     * @throws APIManagementException   If failed to search apis.
      */
     List<API> searchAPIs(String query, int offset, int limit) throws APIManagementException;
 
@@ -63,7 +68,7 @@ public interface APIStore extends APIManager {
      * Function to remove an Application from the API Store
      *
      * @param appId - The Application id of the Application
-     * @throws APIManagementException
+     * @throws APIManagementException   If failed to delete application.
      */
     void deleteApplication(String appId) throws APIManagementException;
 
@@ -71,10 +76,10 @@ public interface APIStore extends APIManager {
      * Adds an application
      *
      * @param application Application
-     * @return uuid of the newly created application
+     * @return ApplicationCreationResponse
      * @throws APIManagementException if failed to add Application
      */
-    String addApplication(Application application) throws APIManagementException;
+    ApplicationCreationResponse addApplication(Application application) throws APIManagementException;
 
     /**
      * This will return APIM application by giving name and subscriber
@@ -83,7 +88,7 @@ public interface APIStore extends APIManager {
      * @param ownerId          Application owner ID.
      * @param groupId         Group id.
      * @return it will return Application.
-     * @throws APIManagementException
+     * @throws APIManagementException Failed to get application by name.
      */
     Application getApplicationByName(String applicationName, String ownerId, String groupId)
             throws APIManagementException;
@@ -119,6 +124,7 @@ public interface APIStore extends APIManager {
      * @param validityTime    validity time period.
      * @param groupingId      APIM application id.
      * @param tokenScope      Scopes for the requested tokens.
+     * @return                {@code Map<String, Object>}  Map of generated keys.
      * @throws APIManagementException if failed to applications for given subscriber
      */
     Map<String, Object> generateApplicationKeys(String userId, String applicationName, String applicationId,
@@ -128,61 +134,63 @@ public interface APIStore extends APIManager {
     /**
      * Retrieve an application given the uuid.
      *
-     * @param uuid
+     * @param uuid  UUID of the application.
      * @return Application object of the given uuid
-     * @throws APIManagementException
+     * @throws APIManagementException   If failed to get the application.
      */
     Application getApplicationByUuid(String uuid) throws APIManagementException;
 
     /**
      * Retrieve list of subscriptions given the application.
      *
-     * @param application
+     * @param application   Application Object.
      * @return List of subscriptions objects of the given application.
-     * @throws APIManagementException
+     * @throws APIManagementException If failed to get the subscriptions for the application.
      */
     List<Subscription> getAPISubscriptionsByApplication(Application application) throws APIManagementException;
 
     /**
      * Add an api subscription.
      *
-     * @param apiId
-     * @param applicationId
-     * @param tier
-     * @return
-     * @throws APIManagementException
+     * @param apiId             UUID of the API.
+     * @param applicationId     UUID of the Application
+     * @param tier              Tier level.
+     * @return SubscriptionResponse  Id and the workflow response
+     * @throws APIManagementException   If failed to add the subscription
      */
-    String addApiSubscription(String apiId, String applicationId, String tier) throws APIManagementException;
+    SubscriptionResponse addApiSubscription(String apiId, String applicationId, String tier)
+            throws APIManagementException;
 
     /**
      * Delete an API subscription.
      *
-     * @param subscriptionId
-     * @throws APIManagementException
+     * @param subscriptionId    Id of the subscription to be deleted.
+     * @throws APIManagementException   If failed to delete the subscription.
      */
     void deleteAPISubscription(String subscriptionId) throws APIManagementException;
 
     /**
      * Retrieve all tags
      *
-     * @return
-     * @throws APIManagementException
+     * @return  List of Tag objects
+     * @throws APIManagementException   If failed to retrieve tags
      */
     List<Tag> getAllTags() throws APIManagementException;
 
     /**
      * Retrieve all policies of given tier level.
-     *
-     * @return
-     * @throws APIManagementException
+     * @param tierLevel Tier level.
+     * @return  List of policies for the given tier level.
+     * @throws APIManagementException   If failed to get policies.
      */
     List<Policy> getPolicies(String tierLevel) throws APIManagementException;
 
     /**
      * Retrieve all policies of given tier level.
-     *
-     * @return
-     * @throws APIManagementException
+     * @param tierLevel Level of the tier.
+     * @param tierName  Name of the tier.
+     * @return  Policy object.
+     * @throws APIManagementException   If failed to get the policy.
      */
     Policy getPolicy(String tierLevel, String tierName) throws APIManagementException;
 
@@ -190,8 +198,48 @@ public interface APIStore extends APIManager {
      * Retrieve Label information based on the label name
      *
      * @param labels List of label names
-     * @return List<Label> List of Labels
+     * @return {@code List<Label>} List of Labels
      * @throws APIManagementException if failed to get labels
      */
     List<Label> getLabelInfo(List<String> labels) throws APIManagementException;
+
+    /**
+     * Retrieve Individual Comment based on Comment ID
+     *
+     * @param commentId UUID od the comment
+     * @param apiId UUID of the API
+     * @return Comment Object.
+     * @throws APIManagementException if failed to get labels
+     */
+    Comment getCommentByUUID(String commentId, String apiId) throws APIManagementException;
+
+    /**
+     * Retrieve User Rating based on the API ID and User Name
+     *
+     * @param apiId UUID of the API
+     * @param username Name of the logged in user
+     * @return Average rating
+     * @throws APIManagementException if failed to get labels
+     */
+    double getUserRating(String apiId, String username) throws APIManagementException;
+
+    /**
+     * Retrieve Average Rating based on the API ID
+     *
+     * @param apiId UUID of the API
+     * @return Average Rating value
+     * @throws APIManagementException if failed to get labels
+     */
+    double getAvgRating(String apiId) throws APIManagementException;
+
+    /**
+     * Retrieve List of all user Ratings based on API ID
+     *
+     * @param apiId UUID of the API
+     * @return List of Rating Objects
+     * @throws APIManagementException if failed to get labels
+     */
+    List<Rating> getUserRatingDTOList(String apiId) throws APIManagementException;
+
+
 }

@@ -59,8 +59,8 @@ public class MappingUtil {
     /**
      * This method converts the API Object from models into APIDTO object.
      *
-     * @param api
-     * @return
+     * @param api API object
+     * @return APIDTO object with provided API object
      */
     public static APIDTO toAPIDto(API api) {
         APIDTO apidto = new APIDTO();
@@ -77,7 +77,9 @@ public class MappingUtil {
         apidto.setProvider(api.getProvider());
         apidto.setPermission(api.getApiPermission());
         apidto.setLifeCycleStatus(api.getLifeCycleStatus());
+        apidto.setWorkflowStatus(api.getWorkflowStatus());
         apidto.setTags(api.getTags());
+        apidto.setLabels(api.getLabels());
         apidto.setTransport(api.getTransport());
         api.getPolicies().forEach(apidto::addPoliciesItem);
         BusinessInformation businessInformation = api.getBusinessInformation();
@@ -125,8 +127,8 @@ public class MappingUtil {
     /**
      * This method converts the API model object from the DTO object.
      *
-     * @param apidto
-     * @return
+     * @param apidto APIDTO object with API data
+     * @return APIBuilder object
      */
     public static API.APIBuilder toAPI(APIDTO apidto) {
         BusinessInformation businessInformation = new BusinessInformation();
@@ -178,6 +180,7 @@ public class MappingUtil {
                 policies(apidto.getPolicies()).
                 permission(apidto.getPermission()).
                 tags(apidto.getTags()).
+                labels(apidto.getLabels()).
                 transport(apidto.getTransport()).
                 isResponseCachingEnabled(Boolean.valueOf(apidto.getResponseCaching())).
                 policies(apidto.getPolicies()).
@@ -221,16 +224,17 @@ public class MappingUtil {
             apiInfo.setProvider(apiSummary.getProvider());
             apiInfo.setLifeCycleStatus(apiSummary.getLifeCycleStatus());
             apiInfo.setVersion(apiSummary.getVersion());
+            apiInfo.setWorkflowStatus(apiSummary.getWorkflowStatus());
             apiInfoList.add(apiInfo);
         }
         return apiInfoList;
     }
 
     /**
-     * Converts {@link List<API>} to {@link APIListDTO} DTO.
+     * Converts API list to APIListDTO list.
      *
-     * @param apisResult
-     * @return
+     * @param apisResult List of APIs
+     * @return APIListDTO object
      */
     public static APIListDTO toAPIListDTO(List<API> apisResult) {
         APIListDTO apiListDTO = new APIListDTO();
@@ -244,8 +248,8 @@ public class MappingUtil {
     /**
      * this  method convert Model object into Dto
      *
-     * @param documentInfo
-     * @return
+     * @param documentInfo object containing document information
+     * @return DTO object containing document data
      */
     public static DocumentDTO toDocumentDTO(DocumentInfo documentInfo) {
         DocumentDTO documentDTO = new DocumentDTO();
@@ -257,14 +261,18 @@ public class MappingUtil {
         documentDTO.setSummary(documentInfo.getSummary());
         documentDTO.setVisibility(DocumentDTO.VisibilityEnum.fromValue(documentInfo.getVisibility().toString()));
         documentDTO.setType(DocumentDTO.TypeEnum.fromValue(documentInfo.getType().toString()));
+        documentDTO.setCreatedBy(documentInfo.getCreatedBy());
+        documentDTO.setCreatedTime(documentInfo.getCreatedTime().toString());
+        documentDTO.setLastUpdatedBy(documentInfo.getUpdatedBy());
+        documentDTO.setLastUpdatedTime(documentInfo.getLastUpdatedTime().toString());
         return documentDTO;
     }
 
     /**
-     * This mrthod convert the Dto object into Model
+     * This method convert the Dto object into Model
      *
-     * @param documentDTO
-     * @return
+     * @param documentDTO Contains data of a document
+     * @return DocumentInfo model instance with document data
      */
     public static DocumentInfo toDocumentInfo(DocumentDTO documentDTO) {
         return new DocumentInfo.Builder().
@@ -283,8 +291,8 @@ public class MappingUtil {
     /**
      * This method converts documentInfoResults to documentListDTO
      *
-     * @param documentInfoResults
-     * @return
+     * @param documentInfoResults list of document which return as results
+     * @return DTO cotaning document list
      */
     public static DocumentListDTO toDocumentListDTO(List<DocumentInfo> documentInfoResults) {
         DocumentListDTO documentListDTO = new DocumentListDTO();
@@ -296,8 +304,9 @@ public class MappingUtil {
 
 
     /**
-     * This method convert {@link org.wso2.carbon.apimgt.core.models.Application} to {@link ApplicationDTO}
-     * return
+     * This method convert Application model to ApplicationDTO
+     * @param application Contains application data
+     * @return DTO containing application data
      */
     public static ApplicationDTO toApplicationDto(Application application) {
         ApplicationDTO applicationDTO = new ApplicationDTO();
@@ -311,12 +320,12 @@ public class MappingUtil {
     }
 
     /**
-     * Converts List<{@link Subscription}> into {@link SubscriptionListDTO}</>
+     * Converts Subscription model into SubscriptionListDTO object
      *
-     * @param subscriptionList list of {@link Subscription}
+     * @param subscriptionList list of subscriptions
      * @param limit            no of items to return
-     * @param offset
-     * @return
+     * @param offset value to offset
+     * @return SubscriptionListDTO containing subscriptions
      */
     public static SubscriptionListDTO fromSubscriptionListToDTO(List<Subscription> subscriptionList, Integer limit,
                                                                 Integer offset) {
@@ -328,10 +337,10 @@ public class MappingUtil {
     }
 
     /**
-     * Converts {@link Subscription} to {@link SubscriptionDTO}
+     * Converts Subscription to SubscriptionDTO
      *
-     * @param subscription
-     * @return
+     * @param subscription subscription model containg subscription details
+     * @return SubscriptionDTO containing subscription list
      */
     public static SubscriptionDTO fromSubscription(Subscription subscription) {
         SubscriptionDTO subscriptionDTO = new SubscriptionDTO();
@@ -345,10 +354,10 @@ public class MappingUtil {
     }
 
     /**
-     * Convert {@link Endpoint} to {@link EndPointDTO}
+     * Convert Endpoint to EndPointDTO
      *
-     * @param endpoint
-     * @return
+     * @param endpoint endpoint model instance
+     * @return EndPointDTO instance containing endpoint data
      */
     public static EndPointDTO toEndPointDTO(Endpoint endpoint) {
         EndPointDTO endPointDTO = new EndPointDTO();
@@ -362,10 +371,10 @@ public class MappingUtil {
     }
 
     /**
-     * Convert {@link EndPointDTO} to {@link Endpoint}
+     * Convert EndPointDTO to Endpoint
      *
-     * @param endPointDTO
-     * @return
+     * @param endPointDTO Contains data of a endpoint
+     * @return Endpoint model instance containing endpoint data
      */
     public static Endpoint toEndpoint(EndPointDTO endPointDTO) {
         Endpoint.Builder endPointBuilder = new Endpoint.Builder();
@@ -378,10 +387,10 @@ public class MappingUtil {
     }
 
     /**
-     * Convert {@link List<Label>} to {@link LabelListDTO}
+     * Convert list of Label to LabelListDTO
      *
-     * @param labels
-     * @return
+     * @param labels List of labels
+     * @return LabelListDTO list containing label data
      */
     public static LabelListDTO toLabelListDTO(List<Label> labels) {
         LabelListDTO labelListDTO = new LabelListDTO();
@@ -391,17 +400,17 @@ public class MappingUtil {
     }
 
     /**
-     * Converts {@link Label} List to an {@link LabelListDTO} List.
+     * Converts label List to LabelListDTO} List.
      *
-     * @param labels
-     * @return
+     * @param labels list of labels
+     * @return LabelDTO list
      */
     private static List<LabelDTO> toLabelDTO(List<Label> labels) {
         List<LabelDTO> labelDTOs = new ArrayList<>();
         for (Label label : labels) {
             LabelDTO labelDTO = new LabelDTO();
             labelDTO.setName(label.getName());
-            labelDTO.setAccessUrl(label.getAccessUrl());
+            labelDTO.setAccessUrls(label.getAccessUrls());
             labelDTOs.add(labelDTO);
         }
         return labelDTOs;

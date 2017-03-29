@@ -41,11 +41,20 @@ public interface PolicyDAO {
     void deletePolicy(String policyName);
 
     /**
+     * Retrieves Subscription Policy by name
+     *
+     * @param policyName Subscription policy name
+     * @return {@link SubscriptionPolicy} of given UUID
+     * @throws APIMgtDAOException
+     */
+    SubscriptionPolicy getSubscriptionPolicy(String policyName) throws APIMgtDAOException;
+
+    /**
      * Retrieves Subscription Policy by UUID
      *
      * @param policyId  Subscription policy ID
      * @return {@link SubscriptionPolicy} of given UUID
-     * @throws APIMgtDAOException
+     * @throws APIMgtDAOException   If failed to get subscription policy.
      */
     SubscriptionPolicy getSubscriptionPolicyById(String policyId) throws APIMgtDAOException;
 
@@ -54,9 +63,46 @@ public interface PolicyDAO {
      *
      * @param policyId  Application policy ID
      * @return {@link ApplicationPolicy} of given UUID
-     * @throws APIMgtDAOException
+     * @throws APIMgtDAOException   If failed to get application policy.
      */
     ApplicationPolicy getApplicationPolicyById(String policyId) throws APIMgtDAOException;
 
+    /**
+     * Retrieves the last updated time of a throttling policy given its policy level and policy name
+     *
+     * @param policyLevel level of the throttling policy
+     * @param policyName  name of the throttling policy
+     * @return last updated time
+     * @throws APIMgtDAOException if API Manager core level exception occurred
+     */
+    String getLastUpdatedTimeOfThrottlingPolicy(String policyLevel, String policyName) throws APIMgtDAOException;
 
+    /**
+     * Retrieves the last updated time of an API level throttling policy given its policy name
+     *
+     * @param policyName name of the throttling policy
+     * @return last updated time
+     * @throws APIMgtDAOException if API Manager core level exception occurred
+     */
+    String getLastUpdatedTimeOfAPIPolicy(String policyName) throws APIMgtDAOException;
+
+    /**
+     * Retrieves the last updated time of an application level throttling policy given its policy name
+     *
+     * @param policyName name of the throttling policy
+     * @return last updated time
+     * @throws APIMgtDAOException if API Manager core level exception occurred
+     */
+    String getLastUpdatedTimeOfApplicationPolicy(String policyName)
+            throws APIMgtDAOException;
+
+    /**
+     * Retrieves the last updated time of an subscription level throttling policy given its policy name
+     *
+     * @param policyName name of the throttling policy
+     * @return last updated time
+     * @throws APIMgtDAOException if API Manager core level exception occurred
+     */
+    String getLastUpdatedTimeOfSubscriptionPolicy(String policyName)
+            throws APIMgtDAOException;
 }

@@ -166,6 +166,7 @@ public class KeyManagerUtil {
         adminScopes.add("apim:subscription_view");
         adminScopes.add("apim:subscription_block");
         adminScopes.add("apim:subscribe");
+        adminScopes.add("apim:api_workflow");
         List<String> subsciberScopes = new ArrayList<>();
         subsciberScopes.add("apim:subscribe");
         userMap.put("admin", "admin");
@@ -277,7 +278,12 @@ public class KeyManagerUtil {
         return applications;
     }
 
-    public static void getBackedUpTokenData(String fileName) {
+    public static void getBackedUpTokenData() {
+        getBackedUpTokenData("token.data");
+        getBackedUpTokenData("refresh.data");
+    }
+
+    private static void getBackedUpTokenData(String fileName) {
         String backUpPath = Utils.getCarbonHome() + File.separator + "database" + File.separator + fileName;
         File file = new File(backUpPath);
         if (!file.exists()) {
@@ -287,7 +293,11 @@ public class KeyManagerUtil {
         try {
             FileInputStream fis = new FileInputStream(backUpPath);
             ois = new ObjectInputStream(fis);
-            tokenMap = (Map) ois.readObject();
+            if (fileName.contains("token")) {
+                tokenMap = (Map) ois.readObject();
+            } else {
+                refreshTokenMap = (Map) ois.readObject();
+            }
         } catch (FileNotFoundException e) {
             log.error("Error while getting backed up token data", e);
         } catch (IOException e) {

@@ -2958,6 +2958,9 @@ definitions:
       lifeCycleStatus:
         type: string
         example: CREATED
+      workflowStatus:
+        type: string
+        example: APPROVED
 
 #-----------------------------------------------------
 # The API resource
@@ -3003,6 +3006,9 @@ definitions:
       lifeCycleStatus:
         type: string
         example: CREATED
+      workflowStatus:
+        type: string
+        example: APPROVED
       createdTime:
         type: string
         example: 2017-02-20T13:57:16.229
@@ -3033,6 +3039,11 @@ definitions:
         items:
           type: string
         example: ["substract","add"]
+      labels:
+        type: array
+        items:
+          type: string
+        example: ["public","private"]
       policies:
         type: array
         items:
@@ -3258,6 +3269,16 @@ definitions:
           - PRIVATE
           - API_LEVEL
         example: API_LEVEL
+      createdTime:
+        type: string
+        example: 2017-02-20T13:57:16.229
+      createdBy:
+        type: string
+      lastUpdatedTime:
+        type: string
+        example: 2017-02-20T13:57:16.229
+      lastUpdatedBy:
+        type: string
 
 #-----------------------------------------------------
 # The Tier List resource
@@ -3620,12 +3641,14 @@ definitions:
     title: Label
     required:
       - name
-      - access_url
+      - access_urls
     properties:
       name:
         type: string
-      access_url:
-        type: string
+      access_urls:
+        type: array
+        items:
+          type: string
 
 #-----------------------------------------------------
 # The Label List resource
@@ -3758,3 +3781,4 @@ definitions:
                 type: string
             forTarget:
               type: string
+

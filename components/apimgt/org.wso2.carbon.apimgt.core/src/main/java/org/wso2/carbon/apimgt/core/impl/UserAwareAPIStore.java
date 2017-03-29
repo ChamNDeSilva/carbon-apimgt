@@ -28,6 +28,9 @@ import org.wso2.carbon.apimgt.core.dao.ApplicationDAO;
 import org.wso2.carbon.apimgt.core.dao.LabelDAO;
 import org.wso2.carbon.apimgt.core.dao.PolicyDAO;
 import org.wso2.carbon.apimgt.core.dao.TagDAO;
+import org.wso2.carbon.apimgt.core.dao.WorkflowDAO;
+import org.wso2.carbon.apimgt.core.dao.impl.CommentDAO;
+import org.wso2.carbon.apimgt.core.dao.impl.RatingDAO;
 import org.wso2.carbon.apimgt.core.exception.APIManagementException;
 import org.wso2.carbon.apimgt.core.exception.APIMgtDAOException;
 import org.wso2.carbon.apimgt.core.exception.APIMgtResourceNotFoundException;
@@ -44,8 +47,9 @@ public class UserAwareAPIStore extends APIStoreImpl {
 
     public UserAwareAPIStore(String username, ApiDAO apiDAO, ApplicationDAO applicationDAO,
                              APISubscriptionDAO apiSubscriptionDAO, PolicyDAO policyDAO, TagDAO tagDAO,
-                             LabelDAO labelDAO) {
-        super(username, apiDAO, applicationDAO, apiSubscriptionDAO, policyDAO, tagDAO, labelDAO);
+                             LabelDAO labelDAO, WorkflowDAO workflowDAO, CommentDAO commentDAO, RatingDAO ratingDAO) {
+        super(username, apiDAO, applicationDAO, apiSubscriptionDAO, policyDAO, tagDAO, labelDAO, workflowDAO,
+                commentDAO, ratingDAO);
     }
 
     @Override

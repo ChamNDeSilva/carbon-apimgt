@@ -45,6 +45,18 @@
         <module>features/apimgt</module>
     </modules>
 
+    <profiles>
+        <profile>
+            <id>coverage</id>
+            <modules>
+                <module>components/apimgt</module>
+                <module>components/web</module>
+                <module>features/apimgt</module>
+                <module>coverage-reports</module>
+            </modules>
+        </profile>
+    </profiles>
+
     <pluginRepositories>
         <pluginRepository>
             <id>wso2-maven2-repository-1</id>
@@ -466,6 +478,11 @@
                 <artifactId>workspace-service</artifactId>
                 <version>0.8.2</version>
             </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-log4j12</artifactId>
+                <version>${slf4j.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -546,23 +563,73 @@
                     <version>${jacoco.version}</version>
                     <executions>
                         <execution>
-                            <id>default-instrument</id>
+                            <id>pre-unit-test</id>
                             <goals>
-                                <goal>instrument</goal>
+                                <goal>prepare-agent</goal>
                             </goals>
+                            <configuration>
+                                <destFile>${basedir}/target/coverage-reports/jacoco-ut.exec</destFile>
+                            </configuration>
                         </execution>
                         <execution>
-                            <id>default-restore-instrumented-classes</id>
+                            <id>pre-integration-test</id>
                             <goals>
-                                <goal>restore-instrumented-classes</goal>
+                                <goal>prepare-agent-integration</goal>
                             </goals>
+                            <configuration>
+                                <destFile>${basedir}/target/coverage-reports/jacoco-it.exec</destFile>
+                            </configuration>
                         </execution>
                         <execution>
-                            <id>default-report</id>
+                            <id>post-integration-test</id>
+                            <phase>post-integration-test</phase>
+                            <goals>
+                                <goal>report</goal>
+                            </goals>
+                            <configuration>
+                                <dataFile>${basedir}/target/coverage-reports/jacoco-it.exec</dataFile>
+                                <outputDirectory>${basedir}/target/coverage-reports/site/jacoco-it</outputDirectory>
+                            </configuration>
+                        </execution>
+                        <execution>
+                            <id>post-unit-test</id>
                             <phase>prepare-package</phase>
                             <goals>
                                 <goal>report</goal>
                             </goals>
+                            <configuration>
+                                <dataFile>${basedir}/target/coverage-reports/jacoco-ut.exec</dataFile>
+                                <outputDirectory>${basedir}/target/coverage-reports/site/jacoco-ut</outputDirectory>
+                            </configuration>
+                        </execution>
+                        <execution>
+                            <id>merge-results</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>merge</goal>
+                            </goals>
+                            <configuration>
+                                <fileSets>
+                                    <fileSet>
+                                        <directory>${basedir}/target/coverage-reports</directory>
+                                        <includes>
+                                            <include>*.exec</include>
+                                        </includes>
+                                    </fileSet>
+                                </fileSets>
+                                <destFile>${basedir}/target/coverage-reports/aggregate.exec</destFile>
+                            </configuration>
+                        </execution>
+                        <execution>
+                            <id>post-merge-report</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>report</goal>
+                            </goals>
+                            <configuration>
+                                <dataFile>${basedir}/target/coverage-reports/aggregate.exec</dataFile>
+                                <outputDirectory>${basedir}/target/coverage-reports/site/jacoco-aggregate</outputDirectory>
+                            </configuration>
                         </execution>
                         <execution>
                             <id>default-check</id>
@@ -570,7 +637,18 @@
                                 <goal>check</goal>
                             </goals>
                             <configuration>
+                                <dataFile>${basedir}/target/coverage-reports/aggregate.exec</dataFile>
                                 <rules>
+                                    <rule>
+                                        <element>BUNDLE</element>
+                                        <limits>
+                                            <limit>
+                                                <counter>INSTRUCTION</counter>
+                                                <value>COVEREDRATIO</value>
+                                                <minimum>0.14</minimum>
+                                            </limit>
+                                        </limits>
+                                    </rule>
                                 </rules>
                             </configuration>
                         </execution>
@@ -582,22 +660,55 @@
                     <version>${maven.surefire.plugin.version}</version>
                     <configuration>
                         <systemPropertyVariables>
-                            <jacoco-agent.destfile>target/jacoco.exec</jacoco-agent.destfile>
+                            <jacoco-agent.destfile>${basedir}/target/coverage-reports/jacoco-ut.exec</jacoco-agent.destfile>
                         </systemPropertyVariables>
                     </configuration>
                 </plugin>
                 <plugin>
-                <groupId>io.fabric8</groupId>
-                <artifactId>docker-maven-plugin</artifactId>
-                <version>0.18.1</version>
+                    <groupId>io.fabric8</groupId>
+                    <artifactId>docker-maven-plugin</artifactId>
+                    <version>0.18.1</version>
                 </plugin>
                 <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-failsafe-plugin</artifactId>
-                <version>2.19.1</version>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>2.19.1</version>
+                    <configuration>
+                        <systemPropertyVariables>
+                            <jacoco-agent.destfile>${basedir}/target/coverage-reports/jacoco-it.exec</jacoco-agent.destfile>
+                        </systemPropertyVariables>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>integration-test</goal>
+                                <goal>verify</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                <groupId>io.fabric8</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <version>0.20.0</version>
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>docs</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>javadoc</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
     <properties>
         <!-- File encoding of build -->
@@ -700,7 +811,7 @@
         <snakeyaml.version.range>[1.16, 2.0.0)</snakeyaml.version.range>
         <carbon.uuf.version>1.0.0-m13</carbon.uuf.version>
         <carbon-uuf-maven-plugin.version>1.0.0-m11</carbon-uuf-maven-plugin.version>
-        <carbon.uuf.common.version>1.0.0-m5</carbon.uuf.common.version>
+        <carbon.uuf.common.version>1.0.0-m6</carbon.uuf.common.version>
         <findbug.exclude.version>3.0.0</findbug.exclude.version>
         <!--Start of Dependency for integration gateway extension-->
         <carbon.messaging.version>2.2.3</carbon.messaging.version>
@@ -714,7 +825,7 @@
         <google.code.gson.version>2.7</google.code.gson.version>
         <velocity.version>1.7.0.wso2v1</velocity.version>
         <!-- Jacoco for code coverage -->
-        <jacoco.version>0.7.5.201505241946</jacoco.version>
+        <jacoco.version>0.7.9</jacoco.version>
         <maven.surefire.plugin.version>2.18.1</maven.surefire.plugin.version>
         <google.guava.version>18.0</google.guava.version>
         <andes.version>3.0.5</andes.version>
@@ -725,6 +836,6 @@
         <lucene.version>3.6.2_1</lucene.version>
         <lucene.bundle.version>3.6.2.1</lucene.bundle.version>
         <h2.version>1.4.192</h2.version>
-        <carbon.lcm.version>1.0.1</carbon.lcm.version>
+        <carbon.lcm.version>1.0.3</carbon.lcm.version>
     </properties>
 </project>

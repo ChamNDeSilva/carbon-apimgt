@@ -94,7 +94,8 @@ class AuthClient {
         var currentTimestamp =  Math.floor(Date.now() / 1000);
         var tokenTimestamp = window.localStorage.getItem("expiresIn");
         if(tokenTimestamp - currentTimestamp < 100) {
-            var loginPromise = authManager.refresh();
+            var bearerToken = "Bearer " + AuthClient.getCookie("WSO2_AM_REFRESH_TOKEN_1");
+            var loginPromise = authManager.refresh(bearerToken);
             loginPromise.then(function(data,status,xhr){
                 authManager.setAuthStatus(true);
                 var expiresIn = data.validityPeriod + Math.floor(Date.now() / 1000);
@@ -103,7 +104,7 @@ class AuthClient {
             loginPromise.error(
                 function (error) {
                     var error_data = JSON.parse(error.responseText);
-                    var message = "Error[" + error_data.code + "]: " + error_data.description + " | " + error_data.message ;
+                    var message = "Error while refreshing token" + "<br/> You will be redirect to the login page ..." ;
                     noty({
                         text: message,
                         type: 'error',
@@ -114,6 +115,11 @@ class AuthClient {
                         layout: 'top',
                         theme: 'relax',
                         maxVisible: 10,
+                        callback: {
+                            afterClose: function () {
+                                window.location = loginPageUri;
+                            },
+                        }
                     });
 
                 }
@@ -168,7 +174,9 @@ class API {
     constructor(access_key) {
         this.client = new SwaggerClient({
             url: this._getSwaggerURL(),
-            usePromise: true
+            usePromise: true,
+            requestInterceptor: this._getRequestInterceptor(),
+            responseInterceptor: this._getResponseInterceptor()
         });
         this.auth_client = new AuthClient();
         this.client.then(
@@ -199,6 +207,49 @@ class API {
                 });
             }
         );
+    }
+
+    /**
+     * Get the ETag of a given resource key from the session storage
+     * @param key {string} key of resource.
+     * @returns {string} ETag value for the given key
+     */
+    static getETag(key) {
+        return sessionStorage.getItem("etag_" + key);
+    }
+
+    /**
+     * Add an ETag to a given resource key into the session storage
+     * @param key {string} key of resource.
+     * @param etag {string} etag value to be stored against the key
+     */
+    static addETag(key, etag) {
+        sessionStorage.setItem("etag_" + key, etag);
+    }
+
+    _getResponseInterceptor() {
+        var responseInterceptor = {
+            apply: function (data) {
+                if (data.headers.etag) {
+                    API.addETag(data.url, data.headers.etag);
+                }
+                return data;
+            }
+        };
+        return responseInterceptor;
+    }
+
+    _getRequestInterceptor() {
+        var requestInterceptor = {
+            apply: function (data) {
+                if (API.getETag(data.url) && (data.method == "PUT" || data.method == "DELETE"
+                    || data.method == "POST")) {
+                    data.headers["If-Match"] = API.getETag(data.url);
+                }
+                return data;
+            }
+        };
+        return requestInterceptor;
     }
 
     _getSwaggerURL() {
@@ -305,6 +356,12 @@ class API {
         }
     }
 
+    /**
+     * Get details of a given API
+     * @param id {string} UUID of the api.
+     * @param callback {function} A callback function to invoke after receiving successful response.
+     * @returns {promise} With given callback attached to the success chain else API invoke promise.
+     */
     get(id, callback = null) {
         var promise_get = this.client.then(
             (client) => {
@@ -320,6 +377,28 @@ class API {
     }
 
     /**
+     * Create a new version of a given API
+     * @param id {string} UUID of the API.
+     * @param version {string} new API version.
+     * @param callback {function} A callback function to invoke after receiving successful response.
+     * @returns {promise} With given callback attached to the success chain else API invoke promise.
+     */
+    createNewAPIVersion(id,version,callback = null) {
+        var promise_copy_api = this.client.then(
+            (client) => {
+                return client["API (Individual)"].post_apis_copy_api(
+                    {apiId: id, newVersion: version},
+                    this._requestMetaData()).catch(AuthClient.unauthorizedErrorHandler);
+            }
+        );
+        if (callback) {
+            return promise_copy_api.then(callback);
+        } else {
+            return promise_copy_api;
+        }
+    }
+
+    /**
      * Get the available policies information by tier level.
      * @param {String} tier_level List API or Application or Resource type policies.parameter should be one of api, application and resource
      * @returns {Promise.<TResult>}
@@ -328,7 +407,7 @@ class API {
         var promise_policies = this.client.then(
             (client) => {
                 return client["Throttling Tier (Collection)"].get_policies_tierLevel(
-                    {tierLevel: 'api'}, this._requestMetaData()).catch(AuthClient.unauthorizedErrorHandler);
+                    {tierLevel: 'subscription'}, this._requestMetaData()).catch(AuthClient.unauthorizedErrorHandler);
             }
         );
         return promise_policies;
@@ -458,28 +537,35 @@ class API {
         );
     }
 
-    updateEndpoint(id, data) {
-        return this.getEndpoint(id).then(
-            function (response) {
-                var endpoint = response.obj;
-                for (var attribute in data) {
-                    if (!endpoint.hasOwnProperty(attribute)) {
-                        throw 'Invalid key : ' + attribute + ', Valid keys are `' + Object.keys(endpoint) + '`';
-                    }
-                }
-                var updated_endpoint = Object.assign(endpoint, data);
-                return this.client.then(
-                    (client) => {
-                        return client["Endpoint (individual)"].put_endpoints_endpointId(
-                            {
-                                endpointId: id,
-                                body: updated_endpoint,
-                                'Content-Type': 'application/json'
-                            }, this._requestMetaData()).catch(AuthClient.unauthorizedErrorHandler);
-                    }
-                ).catch(AuthClient.unauthorizedErrorHandler);
-            }.bind(this)
-        ).catch(AuthClient.unauthorizedErrorHandler)
+    /**
+     * Update endpoint object.
+     * @param data {Object} Endpoint to be updated
+     * @returns {Promise.<TResult>}
+     */
+    updateEndpoint(data) {
+        return this.client.then(
+            (client) => {
+            return client["Endpoint (individual)"].put_endpoints_endpointId(
+                {
+                    endpointId: data.id,
+                    body: data,
+                    'Content-Type': 'application/json'
+                }, this._requestMetaData()).catch(AuthClient.unauthorizedErrorHandler);
+        }).catch(AuthClient.unauthorizedErrorHandler);
+    }
+
+    /**
+     * Get the available labels.
+     * @returns {Promise.<TResult>}
+     */
+    labels() {
+        var promise_labels = this.client.then (
+            (client) => {
+                return client["Label (Collection)"].get_labels({},
+                    this._requestMetaData()).catch(AuthClient.unauthorizedErrorHandler);
+            }
+        );
+        return promise_labels;
     }
 
 }
