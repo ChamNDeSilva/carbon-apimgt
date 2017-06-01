@@ -198,12 +198,20 @@ $(function () {
             });
         }};
         var mode = "PREPEND";
+        var isApplicationActive = true;
+        if (data.obj.lifeCycleStatus != "APPROVED") {
+            isApplicationActive = false;
+        }
         var context = {
             "name": data.obj.name,
             "tier": data.obj.throttlingTier,
             "status": data.obj.lifeCycleStatus,
-            "description": data.obj.description
+            "description": data.obj.description,
+            "isApplicationActive": isApplicationActive,
+            "applicationId": data.obj.applicationId
         };
+        UUFClient.renderFragment("org.wso2.carbon.apimgt.web.store.feature.application-navbar", context, 
+            "application-navbar", mode, callbacks);
         UUFClient.renderFragment("org.wso2.carbon.apimgt.web.store.feature.application-details",context,
             "application-details", mode, callbacks);
     };
@@ -540,6 +548,10 @@ var show_Keys = function (obj) {
 
 
 function _renderActionButtons(data, type, row) {
+    var btnClass = "btn btn-sm padding-reduce-on-grid-view deleteSub";
+    if(!hasValidScopes("/subscriptions/{subscriptionId}", "delete")) {
+      btnClass = "btn btn-sm padding-reduce-on-grid-view deleteSub not-active";
+    }
     if (type === "display") {
 
         var deleteIcon1 = $("<i>").addClass("fw fw-ring fw-stack-2x");
@@ -547,7 +559,7 @@ function _renderActionButtons(data, type, row) {
         var deleteSpanIcon = $("<span>").addClass("fw-stack").append(deleteIcon1).append(deleteIcon2);
         var deleteSpanText = $("<span>").addClass("hidden-xs").text("Unsubscribe");
         var delete_button = $('<a>', {id: data, href: '#', 'data-id': data, title: 'delete'})
-            .addClass("btn btn-sm padding-reduce-on-grid-view deleteSub")
+            .addClass(btnClass)
             .append(deleteSpanIcon)
             .append(deleteSpanText);
         return $('<div></div>').append(delete_button).html();

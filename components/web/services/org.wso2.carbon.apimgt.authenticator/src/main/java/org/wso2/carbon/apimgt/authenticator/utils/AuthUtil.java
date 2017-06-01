@@ -71,7 +71,8 @@ public class AuthUtil {
      *
      */
     public static AccessTokenRequest createAccessTokenRequest(String username, String password, String grantType,
-            String refreshToken, Long validityPeriod, String[] scopes, String clientId, String clientSecret) {
+            String refreshToken, String accessToken, long validityPeriod, String[] scopes, String clientId, String
+            clientSecret) {
 
         AccessTokenRequest tokenRequest = new AccessTokenRequest();
         tokenRequest.setClientId(clientId);
@@ -82,6 +83,7 @@ public class AuthUtil {
         tokenRequest.setResourceOwnerPassword(password);
         tokenRequest.setScopes(scopes);
         tokenRequest.setValidityPeriod(validityPeriod);
+        tokenRequest.setTokenToRevoke(accessToken);
         return tokenRequest;
 
     }
@@ -139,16 +141,16 @@ public class AuthUtil {
      * @param headers  headers which contains the access token
      * @return refresh token present in the cookie and authorization header..
      */
-    public static String extractRefreshTokenFromHeaders(Headers headers) {
+    public static String extractTokenFromHeaders(Headers headers, String cookieHeader) {
         String authHeader = headers.get(AuthenticatorConstants.AUTHORIZATION_HTTP_HEADER);
-        String refreshToken = "";
+        String token = "";
         if (authHeader != null) {
             authHeader = authHeader.trim();
             if (authHeader.toLowerCase(Locale.US).startsWith(AuthenticatorConstants.BEARER_PREFIX)) {
                 // Split the auth header to get the access token.
                 String[] authHeaderParts = authHeader.split(" ");
                 if (authHeaderParts.length == 2) {
-                    refreshToken = authHeaderParts[1];
+                    token = authHeaderParts[1];
                 } else if (authHeaderParts.length < 2) {
                     return null;
                 }
@@ -160,19 +162,14 @@ public class AuthUtil {
         if (cookie != null) {
             cookie = cookie.trim();
             String[] cookies = cookie.split(";");
-            String token = Arrays.stream(cookies).filter(name -> name.contains(AuthenticatorConstants.REFRESH_TOKEN_2))
-                    .findFirst().orElse("");
-            String[] tokenParts = token.split("=");
+            String tokenFromCookie = Arrays.stream(cookies).filter(name -> name.contains(cookieHeader)).findFirst()
+                    .orElse("");
+            String[] tokenParts = tokenFromCookie.split("=");
             if (tokenParts.length == 2) {
-                refreshToken += tokenParts[1];
-            } else {
-                return null;
+                token += tokenParts[1];
             }
-
-        } else {
-            return null;
         }
-        return refreshToken;
+        return token;
     }
 
     /**
@@ -185,7 +182,7 @@ public class AuthUtil {
      * @return Cookie object..
      */
     public static NewCookie cookieBuilder(String name, String value, String path, boolean isSecure,
-            boolean isHttpOnly) {
+            boolean isHttpOnly, String expiresIn) {
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append(value).append(COOKIE_PATH_SEPERATOR).append(path).append(COOKIE_VALUE_SEPERATOR);
         if (isHttpOnly) {
@@ -193,6 +190,9 @@ public class AuthUtil {
         }
         if (isSecure) {
             stringBuilder.append(AuthenticatorConstants.SECURE_COOKIE);
+        }
+        if (expiresIn != null && !expiresIn.isEmpty()) {
+            stringBuilder.append(COOKIE_VALUE_SEPERATOR).append(expiresIn);
         }
         return new NewCookie(name, stringBuilder.toString());
     }

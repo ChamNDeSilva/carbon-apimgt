@@ -146,9 +146,9 @@ function lifecycleTabHandler(event) {
                 var svg_object = document.getElementById("lifecycle-svg");
                 var state_array = {
                     'Created': 'Prototyped,Published',
-                    'Published': 'Published,Created,Blocked,Deprecated,Prototyped',
+                    'Published': 'Published,Created,Maintenance,Deprecated,Prototyped',
                     'Prototyped': 'Published,Created,Prototyped',
-                    'Blocked': 'Published,Deprecated',
+                    'Maintenance': 'Published,Deprecated',
                     'Deprecated': 'Retired,',
                     'Retired': ','
                 };
@@ -181,6 +181,7 @@ function lifecycleTabHandler(event) {
                     animateElement.setAttribute("repeatCount", "indefinite");
                     state_rectangle.appendChild(animateElement);
                 }, false);
+                validateActionButtons('#update-tiers-button', '#update-labels-button');
 
             }, onFailure: function (data) {
             }
@@ -200,6 +201,7 @@ function lifecycleTabHandler(event) {
         var data = {
             lifeCycleStatus: api_data.lifeCycleStatus,
             isPublished: api_data.lifeCycleStatus.toLowerCase() === "published",
+            isWorkflowPending: api_data.workflowStatus.toLowerCase() === "pending",
             policies: policies_data,
             lcState: lcState.obj,
             lcHistory: lcHistory.obj,
@@ -255,6 +257,7 @@ function endpointsTabHandler(event) {
                     }
                     var callbacks = {
                         onSuccess: function (data) {
+                            validateActionButtons('#update-endpoints-configuration');
                         }, onFailure: function (data) {
                         }
                     };
@@ -265,6 +268,21 @@ function endpointsTabHandler(event) {
             $(document).on('click', "#update-endpoints-configuration", {api_client: api_client, api_id: api_id, promised_all_endpoints: all_endpoints}, updateEndpointsHandler);
         }
     ).catch(apiGetErrorHandler);
+}
+
+function subscriptionsTabHandler(event) {
+    var mode = "OVERWRITE"; // Available modes [OVERWRITE,APPEND, PREPEND]
+    var callbacks = {
+        onSuccess: function (data) {
+            var api_client = new API();
+            var api_id = $("#apiId").val();
+            api_client.subscriptions(api_id, getSubscriptionsCallback);
+        },
+        onFailure: function (data) {
+        }
+    };
+    UUFClient.renderFragment("org.wso2.carbon.apimgt.publisher.commons.ui.api-subscriptions", {}, "subscriptions-tab-content", mode, callbacks);
+
 }
 
 /**
@@ -289,18 +307,58 @@ function updateLifecycleHandler(event) {
         }
     };
     promised_update.then(
-        (response, event = event_data) => {
-            var message = "Life cycle state updated successfully!";
-            noty({
-                text: message,
-                type: 'success',
-                dismissQueue: true,
-                progressBar: true,
-                timeout: 5000,
-                layout: 'topCenter',
-                theme: 'relax',
-                maxVisible: 10,
-            });
+        (response, event = event_data) => {     
+            var lcResponse = response.obj;
+            var jsonPayload = lcResponse.jsonPayload;
+                            
+            if(jsonPayload) {
+                var jsonResponse = JSON.parse(jsonPayload);
+                var message = jsonResponse.redirectConfirmationMsg;
+                noty({
+                    text: message,
+                    layout: "top",
+                    theme: 'relax',
+                    dismissQueue: true,
+                    type: "alert",
+                    buttons: [
+                        {addClass: 'btn btn-primary', text: 'Leave page', onClick: function($noty) {
+                            $noty.close();
+                             location.href = jsonResponse.redirectUrl;
+                            }
+                        },
+                        {addClass: 'btn btn-default', text: 'Stay on this page', onClick: function($noty) {
+                            $noty.close();
+                            location.href = contextPath + "/apis/" + event_data.obj.api_id;
+                            }
+                         }
+                        ]
+                });
+            } else if (lcResponse.workflowStatus == 'CREATED') {
+                var message = "Lifecycle state change request has been submitted.";
+                noty({
+                    text: message,
+                    type: 'information',
+                    dismissQueue: true,
+                    progressBar: true,
+                    timeout: 5000,
+                    layout: 'topCenter',
+                    theme: 'relax',
+                    maxVisible: 10,
+                });
+            } else {
+                var message = "Life cycle state updated successfully!";
+                noty({
+                    text: message,
+                    type: 'success',
+                    dismissQueue: true,
+                    progressBar: true,
+                    timeout: 5000,
+                    layout: 'topCenter',
+                    theme: 'relax',
+                    maxVisible: 10,
+                });
+            }
+ 
             lifecycleTabHandler(event);
         }
     ).catch((response, event = event_data) => {
@@ -536,9 +594,217 @@ function updateLabelsHandler(event) {
         }.bind(data));
 }
 
+/**
+ * Do the workflow cleanup for pending task
+ * @param event {object} click event of the wf clean up button
+ */
+function cleanupWorkflowHandler(event) {
+    var api_client = event.data.api_client;
+    var api_id = event.data.api_id;
+    var checked_items = getCheckListItems();
+    var promised_update = api_client.cleanupPendingTask(api_id);
+    var event_data = {
+        data: {
+            api_client: api_client,
+            api_id: api_id
+        }
+    };
+    promised_update.then(
+        (response, event = event_data) => {     
+
+            var message = "Life cycle state change request removed successfully!";
+                noty({
+                    text: message,
+                    type: 'success',
+                    dismissQueue: true,
+                    progressBar: true,
+                    timeout: 5000,
+                    layout: 'topCenter',
+                    theme: 'relax',
+                    maxVisible: 10,
+                });
+ 
+            lifecycleTabHandler(event);
+        }
+    ).catch((response, event = event_data) => {
+            let message_element = $("#general-alerts").find(".alert-danger");
+            message_element.find(".alert-message").html(response.statusText);
+            message_element.fadeIn("slow");
+            lifecycleTabHandler(event);
+        }
+    );
+}
+
 function showTab(tab_name) {
     $('.nav a[href="#' + tab_name + '"]').tab('show');
 }
+
+
+function getDocsCallback(response) {
+    var dt_data = apiResponseToData(response);
+    $('#no-docs-div').show();
+    $('.doc-content').hide();
+    initDataTable(dt_data);
+    if (dt_data.data.length > 0) {
+    	$('.doc-content').show();
+    	$('#no-docs-div').hide();
+    }
+}
+
+function apiResponseToData(response) {
+    var raw_data = {
+        data: response.obj.list
+    };
+    return raw_data;
+}
+
+function resourcesTabHandler(event) {
+    var api_client = event.data.api_client;
+    var api_id = event.data.api_id;
+    var api_context;
+
+    api_client.get(api_id).then(
+        function (response) {
+            api_context = response.obj.context;
+
+            api_client.getSwagger(api_id).then(
+                function (response) {
+                    var api = response.obj;
+                    var data = {
+                        name: api.info.title,
+                        id: api_id,
+                        version: api.info.version,
+                        context: api_context,
+                        verbs: [ 'get' , 'post' , 'put' , 'delete', 'patch', 'head']
+                    };
+                    var callbacks = {
+                        onSuccess: function (data) {
+                            $.fn.editable.defaults.mode = 'inline';
+                            api_client.getSwagger(api_id).then(
+                                function (response) {
+                                    api_doc_local = response.obj;
+                                    var designer = new APIDesigner();
+                                    designer.initControllersCall = "";
+                                    designer.load_api_document(api_doc_local);
+                                });
+                        }, onFailure: function (data) {
+                        }
+                    };
+                    var mode = "OVERWRITE"; // Available modes [OVERWRITE,APPEND, PREPEND]
+                    UUFClient.renderFragment("org.wso2.carbon.apimgt.publisher.commons.ui.api-resources", data, "resources-tab-content", mode, callbacks);
+                }
+            ).catch(apiGetErrorHandler);
+
+        }).catch(apiGetErrorHandler);
+}
+
+function documentTabHandler(event) {
+    var api_client = event.data.api_client;
+    var api_id = event.data.api_id;
+    var callbacks = {
+            onSuccess: function (data) {
+            api_client.getDocuments(api_id,getDocsCallback);
+            if(!hasValidScopes("/apis/{apiId}/documents", "post")) {
+              $('#add-new-doc').addClass('not-active');
+            }
+            }, onFailure: function (data) {
+           }
+          };
+     var mode = "OVERWRITE";
+     var data = {};
+     UUFClient.renderFragment("org.wso2.carbon.apimgt.publisher.commons.ui.api-documents", data, "api-tab-doc-content", mode, callbacks);
+    }
+    
+
+    /**
+     * Event handler for API Console tab onclick event;Get the API swagger definition and display in Swagger UI
+     * @param event {object} Click event of the API Console tab
+     */
+    function apiConsoleTabHandler(event) {
+    	  var api_client = event.data.api_client;
+    	  var api_id = event.data.api_id;
+
+    	   var mode = "OVERWRITE";
+    	   var data = {};
+    	   api_client.get(api_id).then(
+    		        function (response) {
+    		        	var context = response.obj;
+    		        	var label_names = context.labels;
+    		        	var callbacks = {
+    		    	          onSuccess: function (renderedData) {
+    		    	        	  api_client.labels().then(
+    		    	        			  function(labelresponse) {
+    		    	        				  api_client.getSwagger(api_id).then(
+    		    		    	                		 function (jsonData) {
+    		    		    	                			 $("#console-info-div").html(renderedData);
+    		    		    	                			 var swaggerJSON = JSON.parse(jsonData.data);
+    		    		    	                			 var submitMethods = [];
+    		    		    	                			 var label_data = labelresponse.obj.list;
+    		    		    	                			 if (label_data && label_data.length > 0) {
+    		    		    	                				 var gw_host = getAccessURL(label_data, label_names);
+    		    		    	                				 if (gw_host) {
+    		    		    	                					 swaggerJSON["host"] = gw_host;
+    		    		    	                					 swaggerJSON["schemes"] = [location.protocol.split(":")[0]];
+    		    		    	                					 submitMethods = ['get', 'post', 'put', 'delete', 'patch', 'head'];
+    		    		    	                					 $("#label-warn-div").hide();
+    		    		    	                				 } else {
+    		    		    	                					 submitMethods = [];
+    		    		    	                					 $("#label-warn-div").show();
+    		    		    	                				 }
+    		    		    	                			 }
+    		    		    	                			 spec: swaggerJSON,
+    		    		    	                			 $(document).ready(function() {
+    		    		    	                				 window.swaggerUi = new SwaggerUi({
+    		    		    	                					 spec: swaggerJSON,
+    		    		    	                					 dom_id: "swagger-ui-container",
+    		    		    	                					 supportedSubmitMethods: submitMethods,
+    		    		    	                					 onComplete: function(swaggerApi, swaggerUi){
+    		    		    	                						 console.log("Loaded SwaggerUI");
+    		    		    	                					 },
+    		    		    	                					 onFailure: function(data) {
+    		    		    	                						 console.log("Unable to Load SwaggerUI");
+    		    		    	                						 },
+    		    		    	                					 docExpansion: "list",
+    		    		    	                					 jsonEditor: false,
+    		    		    	                					 defaultModelRendering: 'schema',
+    		    		    	                					 showRequestHeaders: true,
+    		    		    	                					 validatorUrl: null
+    		    		    	                					 });
+    		    		    	                				 window.swaggerUi.load();
+    		    		    	                				 });
+    		    		    	                			 }
+    		    		    	                		 ).catch(apiGetErrorHandler);
+    		    	        			  }
+    		    	        	  ).catch(apiGetErrorHandler);
+    		    	              }, onFailure: function (data) {
+    		    	            	  
+    		    	              }
+    		    	        };
+    		        	UUFClient.renderFragment("org.wso2.carbon.apimgt.publisher.commons.ui.api-console",
+    		        			{"scheme": location.protocol.split(":")[0]}, "api-console-content", mode, callbacks);
+    		        	}
+    		        ).catch(apiGetErrorHandler);
+    	   }
+
+    //Filter label data and return accessUrl matched to given label and editor app's scheme (http/https)
+    //Here label is the API published GW.
+    function getAccessURL(label_data, label) {
+    	var protocolPrefix = location.protocol + "//";
+    	if (label) {
+    		for (var i = 0; i < label_data.length; i++) {
+    			if (label[0] == label_data[i].name) {
+    				var accessUrls = label_data[i].accessUrls;
+    				for (var j = 0; j < accessUrls.length; j++) {
+    					if (accessUrls[j].indexOf(location.protocol) == 0) {
+    						return accessUrls[j].split(protocolPrefix)[1];
+    					}
+    				}
+    			}
+    		}
+    	}
+    	return null;
+    }
+
 
 /**
  * Execute once the page load is done.
@@ -556,7 +822,12 @@ $(function () {
     $('#tab-1').bind('show.bs.tab', {api_client: client, api_id: api_id}, overviewTabHandler);
     $('#tab-2').bind('show.bs.tab', {api_client: client, api_id: api_id}, lifecycleTabHandler);
     $('#tab-3').bind('show.bs.tab', {api_client: client, api_id: api_id}, endpointsTabHandler);
+    $('#tab-4').bind('show.bs.tab', {api_client: client, api_id: api_id}, resourcesTabHandler);
+    $('#tab-5').bind('show.bs.tab', {api_client: client, api_id: api_id}, documentTabHandler);
+    $('#tab-9').bind('show.bs.tab', {api_client: client, api_id: api_id}, subscriptionsTabHandler);
+    $('#tab-10').bind('show.bs.tab', {api_client: client, api_id: api_id}, apiConsoleTabHandler);
     $(document).on('click', ".lc-state-btn", {api_client: client, api_id: api_id}, updateLifecycleHandler);
+    $(document).on('click', ".wf-cleanup-btn", {api_client: client, api_id: api_id}, cleanupWorkflowHandler);
     $(document).on('click', "#checkItem", {api_client: client, api_id: api_id}, updateLifecycleCheckListHandler);
     $(document).on('click', "#update-labels-button", {api_client: client, api_id: api_id}, updateLabelsHandler);
     loadFromHash();

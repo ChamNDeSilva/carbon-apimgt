@@ -25,7 +25,6 @@ import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import org.wso2.carbon.apimgt.core.models.WorkflowConfig;
-import org.wso2.carbon.kernel.utils.Utils;
 
 public class WorkflowExtensionsConfigBuilderTestCase {
     
@@ -33,31 +32,13 @@ public class WorkflowExtensionsConfigBuilderTestCase {
 
     @Test(description = "Test situation where workflow config file loading during a missing config file")
     public void testWorkflowConfigWithoutConfigFile() {
-        //get the original carbon.home so we can later restore back
-        String carbonHome = Utils.getCarbonHome().toString();
-        log.info("Default carbon.home: " + carbonHome);
-        
-        //carbon.home system property is used when loading the configuration file. to test it, change it to a dummy 
-        //path and get the configurations        
-        System.setProperty("carbon.home", "dummyPath");
-        log.info("Modified carbon.home: " + Utils.getCarbonConfigHome());
-        
-        //clear static variables
-        WorkflowExtensionsConfigBuilder.clearConfig();
-        WorkflowConfig config = WorkflowExtensionsConfigBuilder.getWorkflowConfig();
-                
-        //reset
-        System.setProperty("carbon.home", carbonHome);
-        log.info("Reset carbon.home:" + Utils.getCarbonConfigHome());
+      
+        WorkflowConfig config = WorkflowExtensionsConfigBuilder.getWorkflowConfig();  
         
         Assert.assertNotNull(config.getApplicationCreation(), "Default application creation workflow not set");
         Assert.assertNotNull(config.getSubscriptionCreation(), "Default subscription creation workflow not set");
         Assert.assertNotNull(config.getApplicationDeletion(), "Default application deletion workflow not set");
-        Assert.assertNotNull(config.getSubscriptionDeletion(), "Default subscription deletion workflow not set");
-        Assert.assertNotNull(config.getProductionApplicationRegistration(), 
-                "Default production app creation workflow not set");
-        Assert.assertNotNull(config.getProductionApplicationRegistration(), 
-                "Default sandbox app creation workflow not set");
+        Assert.assertNotNull(config.getSubscriptionDeletion(), "Default subscription deletion workflow not set");     
         
         WorkflowExtensionsConfigBuilder obj = new WorkflowExtensionsConfigBuilder();
         Assert.assertNotNull(obj);

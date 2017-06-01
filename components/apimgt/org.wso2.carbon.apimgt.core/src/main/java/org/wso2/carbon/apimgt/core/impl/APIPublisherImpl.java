@@ -21,37 +21,35 @@ package org.wso2.carbon.apimgt.core.impl;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.wso2.carbon.apimgt.core.api.APIDefinition;
-import org.wso2.carbon.apimgt.core.api.APIGatewayPublisher;
+import org.wso2.carbon.apimgt.core.api.APIGateway;
 import org.wso2.carbon.apimgt.core.api.APILifecycleManager;
 import org.wso2.carbon.apimgt.core.api.APIMObservable;
 import org.wso2.carbon.apimgt.core.api.APIPublisher;
 import org.wso2.carbon.apimgt.core.api.EventObserver;
 import org.wso2.carbon.apimgt.core.api.GatewaySourceGenerator;
+import org.wso2.carbon.apimgt.core.api.IdentityProvider;
 import org.wso2.carbon.apimgt.core.api.WorkflowExecutor;
+import org.wso2.carbon.apimgt.core.api.WorkflowResponse;
 import org.wso2.carbon.apimgt.core.dao.APISubscriptionDAO;
 import org.wso2.carbon.apimgt.core.dao.ApiDAO;
+import org.wso2.carbon.apimgt.core.dao.ApiType;
 import org.wso2.carbon.apimgt.core.dao.ApplicationDAO;
 import org.wso2.carbon.apimgt.core.dao.LabelDAO;
 import org.wso2.carbon.apimgt.core.dao.PolicyDAO;
+import org.wso2.carbon.apimgt.core.dao.TagDAO;
 import org.wso2.carbon.apimgt.core.dao.WorkflowDAO;
-import org.wso2.carbon.apimgt.core.dao.impl.CommentDAO;
-import org.wso2.carbon.apimgt.core.dao.impl.RatingDAO;
 import org.wso2.carbon.apimgt.core.exception.APIManagementException;
 import org.wso2.carbon.apimgt.core.exception.APIMgtDAOException;
 import org.wso2.carbon.apimgt.core.exception.APIMgtResourceNotFoundException;
 import org.wso2.carbon.apimgt.core.exception.ApiDeleteFailureException;
 import org.wso2.carbon.apimgt.core.exception.ExceptionCodes;
 import org.wso2.carbon.apimgt.core.exception.GatewayException;
+import org.wso2.carbon.apimgt.core.exception.LabelException;
+import org.wso2.carbon.apimgt.core.exception.WorkflowException;
 import org.wso2.carbon.apimgt.core.models.API;
-import org.wso2.carbon.apimgt.core.models.APIResource;
-import org.wso2.carbon.apimgt.core.models.APIStatus;
 import org.wso2.carbon.apimgt.core.models.CorsConfiguration;
 import org.wso2.carbon.apimgt.core.models.DocumentInfo;
 import org.wso2.carbon.apimgt.core.models.Endpoint;
@@ -61,12 +59,16 @@ import org.wso2.carbon.apimgt.core.models.LifeCycleEvent;
 import org.wso2.carbon.apimgt.core.models.Provider;
 import org.wso2.carbon.apimgt.core.models.Subscription;
 import org.wso2.carbon.apimgt.core.models.UriTemplate;
-import org.wso2.carbon.apimgt.core.models.Workflow;
+import org.wso2.carbon.apimgt.core.models.WorkflowStatus;
 import org.wso2.carbon.apimgt.core.models.policy.Policy;
 import org.wso2.carbon.apimgt.core.template.APITemplateException;
 import org.wso2.carbon.apimgt.core.template.dto.TemplateBuilderDTO;
 import org.wso2.carbon.apimgt.core.util.APIMgtConstants;
+import org.wso2.carbon.apimgt.core.util.APIMgtConstants.APILCWorkflowStatus;
+import org.wso2.carbon.apimgt.core.util.APIMgtConstants.WorkflowConstants;
 import org.wso2.carbon.apimgt.core.util.APIUtils;
+import org.wso2.carbon.apimgt.core.workflow.APIStateChangeWorkflow;
+import org.wso2.carbon.apimgt.core.workflow.WorkflowExecutorFactory;
 import org.wso2.carbon.lcm.core.exception.LifecycleException;
 import org.wso2.carbon.lcm.core.impl.LifecycleEventManager;
 import org.wso2.carbon.lcm.core.impl.LifecycleState;
@@ -74,11 +76,8 @@ import org.wso2.carbon.lcm.sql.beans.LifecycleHistoryBean;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.ProtocolException;
-import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -94,18 +93,17 @@ import java.util.UUID;
  */
 public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher, APIMObservable {
 
-    APIDefinition apiDefinitionFromSwagger20 = new APIDefinitionFromSwagger20();
-
     private static final Logger log = LoggerFactory.getLogger(APIPublisherImpl.class);
 
     // Map to store observers, which observe APIPublisher events
     private Map<String, EventObserver> eventObservers = new HashMap<>();
 
-    public APIPublisherImpl(String username, ApiDAO apiDAO, ApplicationDAO applicationDAO,
-            APISubscriptionDAO apiSubscriptionDAO, PolicyDAO policyDAO, APILifecycleManager apiLifecycleManager,
-            LabelDAO labelDAO, WorkflowDAO workflowDAO, CommentDAO commentDAO, RatingDAO ratingDAO) {
-        super(username, apiDAO, applicationDAO, apiSubscriptionDAO, policyDAO, apiLifecycleManager, labelDAO,
-                workflowDAO, commentDAO, ratingDAO);
+    public APIPublisherImpl(String username, IdentityProvider idp, ApiDAO apiDAO, ApplicationDAO applicationDAO,
+                            APISubscriptionDAO apiSubscriptionDAO, PolicyDAO policyDAO, APILifecycleManager
+                                    apiLifecycleManager, LabelDAO labelDAO, WorkflowDAO workflowDAO, TagDAO tagDAO,
+                            GatewaySourceGenerator gatewaySourceGenerator, APIGateway apiGatewayPublisher) {
+        super(username, idp, apiDAO, applicationDAO, apiSubscriptionDAO, policyDAO, apiLifecycleManager, labelDAO,
+                workflowDAO, tagDAO, gatewaySourceGenerator, apiGatewayPublisher);
     }
 
     /**
@@ -120,35 +118,24 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
     }
 
     /**
-     * Get a list of APIs published by the given provider. If a given API has multiple APIs,
-     * only the latest version will
-     * be included in this list.
+     * Get a list of subscriptions for provider's APIs
      *
-     * @param providerName username of the the user who created the API
-     * @return set of APIs
-     * @throws APIManagementException if failed to get set of API
+     * @param offset Starting index of the search results
+     * @param limit Number of search results returned
+     * @param providerName if of the provider
+     * @return {@code List<Subscriber>} List of subscriptions for provider's APIs
+     * @throws APIManagementException
      */
     @Override
-    public List<API> getAPIsByProvider(String providerName) throws APIManagementException {
+    public List<Subscription> getSubscribersOfProvider(int offset, int limit, String providerName)
+            throws APIManagementException {
         try {
-            return getApiDAO().getAPIsForProvider(providerName);
+            return getApiSubscriptionDAO().getAPISubscriptionsForUser(offset, limit, providerName);
         } catch (APIMgtDAOException e) {
-            String errorMsg = "Unable to fetch APIs of " + providerName;
+            String errorMsg = "Unable to fetch subscriptions APIs of provider " + providerName;
             log.error(errorMsg, e);
-            throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+            throw new APIMgtDAOException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
         }
-    }
-
-    /**
-     * Get a list of all the consumers for all APIs
-     *
-     * @param providerId if of the provider
-     * @return {@code Set<String>}
-     * @throws APIManagementException if failed to get subscribed APIs of given provider
-     */
-    @Override
-    public Set<String> getSubscribersOfProvider(String providerId) throws APIManagementException {
-        return null;
     }
 
     /**
@@ -211,6 +198,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
     public String addAPI(API.APIBuilder apiBuilder) throws APIManagementException {
 
         API createdAPI;
+        APIGateway gateway = getApiGateway();
 
         apiBuilder.provider(getUsername());
         if (StringUtils.isEmpty(apiBuilder.getId())) {
@@ -221,6 +209,35 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
         apiBuilder.lastUpdatedTime(localDateTime);
         apiBuilder.createdBy(getUsername());
         apiBuilder.updatedBy(getUsername());
+        Map<String, Endpoint> apiEndpointMap = apiBuilder.getEndpoint();
+        if (apiEndpointMap != null) {
+            for (Map.Entry<String, Endpoint> entry : apiEndpointMap.entrySet()) {
+                if (APIMgtConstants.API_SPECIFIC_ENDPOINT.equals(entry.getValue().getApplicableLevel())) {
+                    Endpoint.Builder endpointBuilder = new Endpoint.Builder(entry.getValue());
+                    if (StringUtils.isEmpty(endpointBuilder.getId())) {
+                        endpointBuilder.id(UUID.randomUUID().toString());
+                    }
+                    if (StringUtils.isEmpty(endpointBuilder.getApplicableLevel())) {
+                        endpointBuilder.applicableLevel(APIMgtConstants.API_SPECIFIC_ENDPOINT);
+                    }
+                    Endpoint endpoint = endpointBuilder.build();
+                    try {
+                        if (getApiDAO().getEndpointByName(endpoint.getName()) != null) {
+                            String msg = "Endpoint Already Exist By Name : " + endpoint.getName();
+                            throw new APIManagementException(msg, ExceptionCodes
+                                    .ENDPOINT_ALREADY_EXISTS);
+                        } else {
+                            apiEndpointMap.replace(entry.getKey(), endpointBuilder.build());
+                        }
+                    } catch (APIMgtDAOException e) {
+                        String msg = "Couldn't find Endpoint By Name : " + endpoint.getName();
+                        log.error(msg, e);
+                        throw new APIManagementException(msg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+                    }
+
+                }
+            }
+        }
         try {
             if (!isApiNameExist(apiBuilder.getName()) && !isContextExist(apiBuilder.getContext())) {
                 LifecycleState lifecycleState = getApiLifecycleManager().addLifecycle(APIMgtConstants.API_LIFECYCLE,
@@ -238,8 +255,34 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                             uriTemplateBuilder.templateId(APIUtils.generateOperationIdFromPath(uriTemplate
                                     .getUriTemplate(), uriTemplate.getHttpVerb()));
                         }
-                        if (uriTemplate.getEndpoint().isEmpty()) {
-                            uriTemplateBuilder.endpoint(apiBuilder.getEndpoint());
+                        if (uriTemplate.getEndpoint() != null && !uriTemplate.getEndpoint().isEmpty()) {
+                            for (Map.Entry<String, Endpoint> entry : uriTemplate.getEndpoint().entrySet()) {
+                                if (APIMgtConstants.API_SPECIFIC_ENDPOINT.equals(entry.getValue().getApplicableLevel
+                                        ())) {
+                                    Endpoint.Builder endpointBuilder = new Endpoint.Builder(entry.getValue
+                                            ());
+                                    if (StringUtils.isEmpty(endpointBuilder.getId())) {
+                                        endpointBuilder.id(UUID.randomUUID().toString());
+                                    }
+                                    if (StringUtils.isEmpty(endpointBuilder.getApplicableLevel())) {
+                                        endpointBuilder.applicableLevel(APIMgtConstants.API_SPECIFIC_ENDPOINT);
+                                    }
+                                    Endpoint endpoint = endpointBuilder.build();
+                                    try {
+                                        if (getApiDAO().getEndpointByName(endpoint.getName()) != null) {
+                                            String msg = "Endpoint Already Exist By Name : " + endpoint.getName();
+                                            throw new APIManagementException(msg, ExceptionCodes
+                                                    .ENDPOINT_ALREADY_EXISTS);
+                                        } else {
+                                            uriTemplate.getEndpoint().replace(entry.getKey(), endpoint);
+                                        }
+                                    } catch (APIMgtDAOException e) {
+                                        String msg = "Couldn't find Endpoint By Name : " + endpoint.getName();
+                                        log.error(msg, e);
+                                        throw new APIManagementException(msg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+                                    }
+                                }
+                            }
                         }
                         uriTemplateMap.put(uriTemplateBuilder.getTemplateId(), uriTemplateBuilder.build());
                     }
@@ -256,20 +299,27 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                     dto.setHttpVerb(uriTemplate.getHttpVerb());
                     dto.setAuthType(uriTemplate.getAuthType());
                     dto.setPolicy(uriTemplate.getPolicy());
-                    Map<String, String> map = uriTemplate.getEndpoint();
-                    if (map.containsKey("production")) {
-                        String uuid = map.get("production");
-                        Endpoint endpoint = getEndpoint(uuid);
-                        dto.setProductionEndpoint(endpoint.getName());
+                    Map<String, Endpoint> map = uriTemplate.getEndpoint();
+                    if (map.containsKey(APIMgtConstants.PRODUCTION_ENDPOINT)) {
+                        Endpoint endpoint = map.get(APIMgtConstants.PRODUCTION_ENDPOINT);
+                        if (APIMgtConstants.API_SPECIFIC_ENDPOINT.equals(endpoint.getApplicableLevel())) {
+                            dto.setProductionEndpoint(endpoint.getName());
+                        } else {
+                            dto.setProductionEndpoint(getApiDAO().getEndpoint(endpoint.getId()).getName());
+                        }
                     }
-                    if (map.containsKey("sandbox")) {
-                        String uuid = map.get("sandbox");
-                        Endpoint endpoint = getEndpoint(uuid);
-                        dto.setSandboxEndpoint(endpoint.getName());
+                    if (map.containsKey(APIMgtConstants.SANDBOX_ENDPOINT)) {
+                        Endpoint endpoint = map.get(APIMgtConstants.SANDBOX_ENDPOINT);
+                        if (APIMgtConstants.API_SPECIFIC_ENDPOINT.equals(endpoint.getApplicableLevel())) {
+                            dto.setSandboxEndpoint(endpoint.getName());
+                        } else {
+                            dto.setSandboxEndpoint(getApiDAO().getEndpoint(endpoint.getId()).getName());
+                        }
                     }
                     resourceList.add(dto);
                 }
-                GatewaySourceGenerator gatewaySourceGenerator = new GatewaySourceGeneratorImpl(apiBuilder.build());
+                GatewaySourceGenerator gatewaySourceGenerator = getGatewaySourceGenerator();
+                gatewaySourceGenerator.setAPI(apiBuilder.build());
                 String gatewayConfig = gatewaySourceGenerator.getConfigStringFromTemplate(resourceList);
                 if (log.isDebugEnabled()) {
                     log.debug("API " + apiBuilder.getName() + "gateway config: " + gatewayConfig);
@@ -281,15 +331,31 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                 }
                 if (apiBuilder.getPermission() != null && !("").equals(apiBuilder.getPermission())) {
                     HashMap roleNamePermissionList;
-                    roleNamePermissionList = getAPIPermissionArray(apiBuilder.getPermission());
+                    roleNamePermissionList = APIUtils.getAPIPermissionArray(apiBuilder.getPermission());
                     apiBuilder.permissionMap(roleNamePermissionList);
                 }
 
                 createdAPI = apiBuilder.build();
                 APIUtils.validate(createdAPI);
-                getApiDAO().addAPI(createdAPI);
-                //publishing config to gateway
-                publishToGateway(createdAPI);
+
+                //Add API to gateway
+                gateway.addAPI(createdAPI);
+
+                Set<String> apiRoleList;
+                //if the API has public visibility, add the API without any role checking
+                //if the API has role based visibility, add the API with role checking
+                if (API.Visibility.PUBLIC == createdAPI.getVisibility()) {
+                    getApiDAO().addAPI(createdAPI);
+                } else if (API.Visibility.RESTRICTED == createdAPI.getVisibility()) {
+                    //get all the roles in the system
+                    Set<String> allAvailableRoles = APIUtils.getAllAvailableRoles();
+                    //get the roles needed to be associated with the API
+                    apiRoleList = createdAPI.getVisibleRoles();
+                    if (APIUtils.checkAllowedRoles(allAvailableRoles, apiRoleList)) {
+                        getApiDAO().addAPI(createdAPI);
+                    }
+                }
+
                 APIUtils.logDebug("API " + createdAPI.getName() + "-" + createdAPI.getVersion() + " was created " +
                         "successfully.", log);
                 // 'API_M Functions' related code
@@ -324,7 +390,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
             log.error(message, e);
             throw new APIManagementException(message, ExceptionCodes.TEMPLATE_EXCEPTION);
         } catch (GatewayException e) {
-            String message = "Error publishing service configuration to Gateway " + apiBuilder.getName();
+            String message = "Error occurred while adding API - " + apiBuilder.getName() + " to gateway";
             log.error(message, e);
             throw new APIManagementException(message, ExceptionCodes.GATEWAY_EXCEPTION);
         }
@@ -351,32 +417,53 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
      */
     @Override
     public void updateAPI(API.APIBuilder apiBuilder) throws APIManagementException {
+        APIGateway gateway = getApiGateway();
+
         apiBuilder.provider(getUsername());
         apiBuilder.updatedBy(getUsername());
         try {
             API originalAPI = getAPIbyUUID(apiBuilder.getId());
             if (originalAPI != null) {
                 apiBuilder.createdTime(originalAPI.getCreatedTime());
+                //workflow status is an internal property and shouldn't be allowed to update externally
+                apiBuilder.workflowStatus(originalAPI.getWorkflowStatus());
                 if ((originalAPI.getName().equals(apiBuilder.getName())) && (originalAPI.getVersion().equals
                         (apiBuilder.getVersion())) && (originalAPI.getProvider().equals(apiBuilder.getProvider())) &&
                         originalAPI.getLifeCycleStatus().equalsIgnoreCase(apiBuilder.getLifeCycleStatus())) {
 
                     if (apiBuilder.getPermission() != null && !("").equals(apiBuilder.getPermission())) {
                         HashMap roleNamePermissionList;
-                        roleNamePermissionList = getAPIPermissionArray(apiBuilder.getPermission());
+                        roleNamePermissionList = APIUtils.getAPIPermissionArray(apiBuilder.getPermission());
                         apiBuilder.permissionMap(roleNamePermissionList);
                     }
 
                     String updatedSwagger = apiDefinitionFromSwagger20.generateSwaggerFromResources(apiBuilder);
                     String gatewayConfig = getApiGatewayConfig(apiBuilder.getId());
-                    GatewaySourceGenerator gatewaySourceGenerator = new GatewaySourceGeneratorImpl(apiBuilder.build());
+                    GatewaySourceGenerator gatewaySourceGenerator = getGatewaySourceGenerator();
+                    gatewaySourceGenerator.setAPI(apiBuilder.build());
                     String updatedGatewayConfig = gatewaySourceGenerator
                             .getGatewayConfigFromSwagger(gatewayConfig, updatedSwagger);
 
                     API api = apiBuilder.build();
+
+                    //Add API to gateway
+                    gateway.updateAPI(api);
+
                     if (originalAPI.getContext() != null && !originalAPI.getContext().equals(apiBuilder.getContext())) {
                         if (!checkIfAPIContextExists(api.getContext())) {
-                            getApiDAO().updateAPI(api.getId(), api);
+                            //if the API has public visibility, update the API without any role checking
+                            if (API.Visibility.PUBLIC == api.getVisibility()) {
+                                getApiDAO().updateAPI(api.getId(), api);
+                            } else if (API.Visibility.RESTRICTED == api.getVisibility()) {
+                                //get all the roles in the system
+                                Set<String> availableRoles = APIUtils.getAllAvailableRoles();
+                                //get the roles needed to be associated with the API
+                                Set<String> apiRoleList = api.getVisibleRoles();
+                                //if the API has role based visibility, update the API with role checking
+                                if (APIUtils.checkAllowedRoles(availableRoles, apiRoleList)) {
+                                    getApiDAO().updateAPI(api.getId(), api);
+                                }
+                            }
                             getApiDAO().updateSwaggerDefinition(api.getId(), updatedSwagger, api.getUpdatedBy());
                             getApiDAO().updateGatewayConfig(api.getId(), updatedGatewayConfig, api.getUpdatedBy());
                         } else {
@@ -384,7 +471,19 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                                     .API_ALREADY_EXISTS);
                         }
                     } else {
-                        getApiDAO().updateAPI(api.getId(), api);
+                        //if the API has public visibility, update the API without any role checking
+                        if (API.Visibility.PUBLIC == api.getVisibility()) {
+                            getApiDAO().updateAPI(api.getId(), api);
+                        } else if (API.Visibility.RESTRICTED == api.getVisibility()) {
+                            //get all the roles in the system
+                            Set<String> allAvailableRoles = APIUtils.getAllAvailableRoles();
+                            //get the roles needed to be associated with the API
+                            Set<String> apiRoleList = api.getVisibleRoles();
+                            //if the API has role based visibility, update the API with role checking
+                            if (APIUtils.checkAllowedRoles(allAvailableRoles, apiRoleList)) {
+                                getApiDAO().updateAPI(api.getId(), api);
+                            }
+                        }
                         getApiDAO().updateSwaggerDefinition(api.getId(), updatedSwagger, api.getUpdatedBy());
                         getApiDAO().updateGatewayConfig(api.getId(), updatedGatewayConfig, api.getUpdatedBy());
                     }
@@ -404,52 +503,8 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                                 ZonedDateTime.now(ZoneOffset.UTC), eventPayload, this);
                         ObserverNotifierThreadPool.getInstance().executeTask(observerNotifier);
                     }
-                } else if (!originalAPI.getLifeCycleStatus().equals(apiBuilder.getLifeCycleStatus())) {
-                    String msg = "API " + apiBuilder.getName() + "-" + apiBuilder.getVersion() + " Couldn't update as" +
-                            " API have " +
-                            "status change";
-                    if (log.isDebugEnabled()) {
-                        log.debug(msg);
-                    }
-
-                    log.error(msg);
-                    throw new APIManagementException(msg, ExceptionCodes.COULD_NOT_UPDATE_API);
-                } else if (!originalAPI.getName().equals(apiBuilder.getName())) {
-                    String msg = "API " + apiBuilder.getName() + "-" + apiBuilder.getVersion() + " Couldn't update as" +
-                            " API have " +
-                            "API Name Change";
-                    if (log.isDebugEnabled()) {
-                        log.debug(msg);
-                    }
-                    log.error(msg);
-                    throw new APIManagementException(msg, ExceptionCodes.COULD_NOT_UPDATE_API);
-                } else if (!originalAPI.getContext().equals(apiBuilder.getContext())) {
-                    String msg = "API " + apiBuilder.getName() + "-" + apiBuilder.getVersion() + " Couldn't update as" +
-                            " API have " +
-                            "Context change";
-                    if (log.isDebugEnabled()) {
-                        log.debug(msg);
-                    }
-                    log.error(msg);
-                    throw new APIManagementException(msg, ExceptionCodes.COULD_NOT_UPDATE_API);
-                } else if (!originalAPI.getVersion().equals(apiBuilder.getVersion())) {
-                    String msg = "API " + apiBuilder.getName() + "-" + apiBuilder.getVersion() + " Couldn't update as" +
-                            " API have " +
-                            "Version change";
-                    if (log.isDebugEnabled()) {
-                        log.debug(msg);
-                    }
-                    log.error(msg);
-                    throw new APIManagementException(msg, ExceptionCodes.COULD_NOT_UPDATE_API);
-                } else if (!originalAPI.getProvider().equals(apiBuilder.getProvider())) {
-                    String msg = "API " + apiBuilder.getName() + "-" + apiBuilder.getVersion() + " Couldn't update as" +
-                            " API have " +
-                            "provider change";
-                    if (log.isDebugEnabled()) {
-                        log.debug(msg);
-                    }
-                    log.error(msg);
-                    throw new APIManagementException(msg, ExceptionCodes.COULD_NOT_UPDATE_API);
+                } else {
+                    APIUtils.verifyValidityOfApiUpdate(apiBuilder, originalAPI);
                 }
             } else {
 
@@ -465,110 +520,78 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
             String errorMsg = "Error occurred while parsing the permission json from swagger - " + apiBuilder.getName();
             log.error(errorMsg, e);
             throw new APIManagementException(errorMsg, e, ExceptionCodes.SWAGGER_PARSE_EXCEPTION);
+        } catch (GatewayException e) {
+            String message = "Error occurred while updating API - " + apiBuilder.getName() + " in gateway";
+            log.error(message, e);
+            throw new APIManagementException(message, ExceptionCodes.GATEWAY_EXCEPTION);
         }
     }
 
-    /**
-     * This method will return map with role names and its permission values.
-     *
-     * @param permissionJsonString Permission json object a string
-     * @return Map of permission values.
-     * @throws ParseException If failed to parse the json string.
-     */
-    private HashMap getAPIPermissionArray(String permissionJsonString) throws ParseException {
 
-        HashMap roleNamePermissionList = new HashMap();
-        JSONParser jsonParser = new JSONParser();
-
-        JSONArray baseJsonArray = (JSONArray) jsonParser.parse(permissionJsonString);
-        for (Object aBaseJsonArray : baseJsonArray) {
-            JSONObject jsonObject = (JSONObject) aBaseJsonArray;
-            String groupId = jsonObject.get(APIMgtConstants.Permission.GROUP_ID).toString();
-            JSONArray subJsonArray = (JSONArray) jsonObject.get(APIMgtConstants.Permission.PERMISSION);
-            int totalPermissionValue = 0;
-            for (Object aSubJsonArray : subJsonArray) {
-                if (APIMgtConstants.Permission.READ.equals(aSubJsonArray.toString().trim())) {
-                    totalPermissionValue += APIMgtConstants.Permission.READ_PERMISSION;
-                } else if (APIMgtConstants.Permission.UPDATE.equals(aSubJsonArray.toString().trim())) {
-                    totalPermissionValue += APIMgtConstants.Permission.UPDATE_PERMISSION;
-                } else if (APIMgtConstants.Permission.DELETE.equals(aSubJsonArray.toString().trim())) {
-                    totalPermissionValue += APIMgtConstants.Permission.DELETE_PERMISSION;
-                }
-            }
-            roleNamePermissionList.put(groupId, totalPermissionValue);
-        }
-
-        return roleNamePermissionList;
-
-    }
 
     /**
-     * This method used to Update the status of API
-     *
-     * @param apiId            UUID of the API.
-     * @param status           Target life cycle status.
-     * @param checkListItemMap Map of check list items.
-     * @throws APIManagementException If failed to update API lifecycle status..
+     * @see org.wso2.carbon.apimgt.core.api.APIPublisher#updateAPIStatus(String, String, Map)
      */
     @Override
-    public void updateAPIStatus(String apiId, String status, Map<String, Boolean> checkListItemMap) throws
+    public WorkflowResponse updateAPIStatus(String apiId, String status, Map<String, Boolean> checkListItemMap) throws
             APIManagementException {
-        boolean requireReSubscriptions = false;
-        boolean deprecateOlderVersion = false;
+        WorkflowResponse workflowResponse = null;
         try {
-            API api = getApiDAO().getAPI(apiId);
-            if (api != null) {
+            API api = getApiDAO().getAPI(apiId);           
+            if (api != null && !APILCWorkflowStatus.PENDING.toString().equals(api.getWorkflowStatus())) {
                 API.APIBuilder apiBuilder = new API.APIBuilder(api);
                 apiBuilder.lastUpdatedTime(LocalDateTime.now());
                 apiBuilder.updatedBy(getUsername());
-                apiBuilder.lifecycleState(getApiLifecycleManager().getCurrentLifecycleState(apiBuilder
-                        .getLifecycleInstanceId()));
+                LifecycleState currentState = getApiLifecycleManager().getLifecycleDataForState(apiBuilder
+                        .getLifecycleInstanceId(), apiBuilder.getLifeCycleStatus());
+                apiBuilder.lifecycleState(currentState);
                 for (Map.Entry<String, Boolean> checkListItem : checkListItemMap.entrySet()) {
-                    getApiLifecycleManager().checkListItemEvent(api.getLifecycleInstanceId
-                            (), api.getLifeCycleStatus(),
-                    checkListItem.getKey(), checkListItem.getValue());
-                    if (APIMgtConstants.DEPRECATE_PREVIOUS_VERSIONS.equals(checkListItem.getKey())) {
-                        deprecateOlderVersion = checkListItem.getValue();
-                    } else if (APIMgtConstants.REQUIRE_RE_SUBSCRIPTIONS.equals(checkListItem.getKey())) {
-                        requireReSubscriptions = checkListItem.getValue();
-                    }
+                    getApiLifecycleManager().checkListItemEvent(api.getLifecycleInstanceId(), api.getLifeCycleStatus(),
+                            checkListItem.getKey(), checkListItem.getValue());
                 }
                 API originalAPI = apiBuilder.build();
-                getApiLifecycleManager().executeLifecycleEvent(api.getLifeCycleStatus(), status, apiBuilder
-                        .getLifecycleInstanceId(), getUsername(), originalAPI);
-                if (deprecateOlderVersion) {
-                    if (StringUtils.isNotEmpty(api.getCopiedFromApiId())) {
-                        API oldAPI = getApiDAO().getAPI(api.getCopiedFromApiId());
-                        if (oldAPI != null) {
-                            API.APIBuilder previousAPI = new API.APIBuilder(oldAPI);
-                            previousAPI.setLifecycleStateInfo(getApiLifecycleManager().getCurrentLifecycleState
-                                    (previousAPI.getLifecycleInstanceId()));
-                            if (APIUtils.validateTargetState(previousAPI.getLifecycleState(),
-                                    APIStatus.DEPRECATED.getStatus())) {
-                                getApiLifecycleManager().executeLifecycleEvent(previousAPI.getLifeCycleStatus(),
-                                        APIStatus.DEPRECATED.getStatus(), previousAPI.getLifecycleInstanceId(),
-                                        getUsername(), previousAPI.build());
-                            }
-                        }
-                    }
+                WorkflowExecutor executor = WorkflowExecutorFactory.getInstance()
+                        .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_API_STATE);
+                APIStateChangeWorkflow workflow = new APIStateChangeWorkflow(getApiDAO(), getApiSubscriptionDAO(),
+                        getWorkflowDAO(), getApiLifecycleManager(), getApiGateway());
+                workflow.setApiName(originalAPI.getName());
+                workflow.setApiProvider(originalAPI.getProvider());
+                workflow.setApiVersion(originalAPI.getVersion());
+                workflow.setCurrentState(currentState.getState());
+                workflow.setTransitionState(status);
+
+                workflow.setWorkflowReference(originalAPI.getId());
+                workflow.setExternalWorkflowReference(UUID.randomUUID().toString());
+                workflow.setCreatedTime(LocalDateTime.now());
+                workflow.setWorkflowType(WorkflowConstants.WF_TYPE_AM_API_STATE);
+                workflow.setInvoker(getUsername());
+                
+                //setting attributes for internal use. These are set to use from outside the executor's method
+                //these will be saved in the AM_WORKFLOW table so these can be retrieved later
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_CUR_STATE, currentState.getState());
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_TARGET_STATE, status);
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_LC_INVOKER, getUsername());
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_LAST_UPTIME,
+                        originalAPI.getLastUpdatedTime().toString());
+                String workflowDescription = "API state change workflow for " + workflow.getApiName() + ":"
+                        + workflow.getApiVersion() + ":" + workflow.getApiProvider() + " from "
+                        + workflow.getCurrentState() + " to " + workflow.getTransitionState() + " state by "
+                        + getUsername();
+                workflow.setWorkflowDescription(workflowDescription);
+                workflowResponse = executor.execute(workflow);
+                workflow.setStatus(workflowResponse.getWorkflowStatus());
+
+                if (WorkflowStatus.CREATED != workflowResponse.getWorkflowStatus()) {
+                    completeWorkflow(executor, workflow);
+                } else {
+                    //add entry to workflow table if it is only in pending state
+                    addWorkflowEntries(workflow);
+                    getApiDAO().updateAPIWorkflowStatus(api.getId(), APILCWorkflowStatus.PENDING);
                 }
-                if (!requireReSubscriptions) {
-                    if (StringUtils.isNotEmpty(api.getCopiedFromApiId())) {
-                        List<Subscription> subscriptions = getApiSubscriptionDAO().getAPISubscriptionsByAPI(api
-                                .getCopiedFromApiId());
-                        List<Subscription> subscriptionList = new ArrayList<>();
-                        for (Subscription subscription : subscriptions) {
-                            if (api.getPolicies().contains(subscription.getSubscriptionTier())) {
-                                if (!APIMgtConstants.SubscriptionStatus.ON_HOLD.equals(subscription.getStatus())) {
-                                    subscriptionList.add(new Subscription(UUID.randomUUID().toString(), subscription
-                                            .getApplication(), subscription.getApi(), subscription
-                                            .getSubscriptionTier()));
-                                }
-                            }
-                            getApiSubscriptionDAO().copySubscriptions(subscriptionList);
-                        }
-                    }
-                }
+            } else if (api != null && APILCWorkflowStatus.PENDING.toString().equals(api.getWorkflowStatus())) {
+                String message = "Pending state transition for api :" + api.getName();
+                log.error(message);
+                throw new APIManagementException(message, ExceptionCodes.WORKFLOW_PENDING);
             } else {
                 throw new APIMgtResourceNotFoundException("Requested API " + apiId + " Not Available");
             }
@@ -581,6 +604,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
             log.error(errorMsg, e);
             throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_LIFECYCLE_EXCEPTION);
         }
+        return workflowResponse;
     }
 
     /**
@@ -600,8 +624,9 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                 API.APIBuilder apiBuilder = new API.APIBuilder(api);
                 apiBuilder.lastUpdatedTime(LocalDateTime.now());
                 apiBuilder.updatedBy(getUsername());
-                apiBuilder.lifecycleState(getApiLifecycleManager().getCurrentLifecycleState(
-                        apiBuilder.getLifecycleInstanceId()));
+                apiBuilder.lifecycleState(getApiLifecycleManager()
+                        .getLifecycleDataForState(apiBuilder.getLifecycleInstanceId(),
+                                apiBuilder.getLifeCycleStatus()));
                 for (Map.Entry<String, Boolean> checkListItem : checkListItemMap.entrySet()) {
                     getApiLifecycleManager().checkListItemEvent(api.getLifecycleInstanceId
                                     (), api.getLifeCycleStatus(),
@@ -679,25 +704,6 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
 
 
     /**
-     * @see APIPublisher#getLastUpdatedTimeOfSwaggerDefinition(String)
-     */
-    @Override
-    public String getLastUpdatedTimeOfGatewayConfig(String apiId) throws APIManagementException {
-        String lastUpdatedTime;
-        try {
-            lastUpdatedTime = getApiDAO().getLastUpdatedTimeOfGatewayConfig(apiId);
-        } catch (APIMgtDAOException e) {
-            String errorMsg =
-                    "Error occurred while retrieving the last update time of the gateway configuration of API with id "
-                            + apiId;
-            log.error(errorMsg, e);
-            throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
-        }
-
-        return lastUpdatedTime;
-    }
-
-    /**
      * Attach Documentation (without content) to an API
      *
      * @param apiId        UUID of API
@@ -721,7 +727,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
 
             if (documentInfo.getPermission() != null && !("").equals(documentInfo.getPermission())) {
                 HashMap roleNamePermissionList;
-                roleNamePermissionList = getAPIPermissionArray(documentInfo.getPermission());
+                roleNamePermissionList = APIUtils.getAPIPermissionArray(documentInfo.getPermission());
                 docBuilder.permissionMap(roleNamePermissionList);
             }
 
@@ -751,14 +757,14 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
      *
      * @param resourceId UUID of API
      * @param content    content of the file as an Input Stream
-     * @param fileName   Name of the file.
+     * @param dataType   File mime type
      * @throws APIManagementException if failed to add the file
      */
     @Override
-    public void uploadDocumentationFile(String resourceId, InputStream content, String fileName) throws
+    public void uploadDocumentationFile(String resourceId, InputStream content, String dataType) throws
             APIManagementException {
         try {
-            getApiDAO().addDocumentFileContent(resourceId, content, fileName, getUsername());
+            getApiDAO().addDocumentFileContent(resourceId, content, dataType, getUsername());
         } catch (APIMgtDAOException e) {
             String errorMsg = "Unable to add documentation with file";
             log.error(errorMsg, e);
@@ -781,26 +787,6 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
             log.error(errorMsg, e);
             throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
         }
-    }
-
-    /**
-     * Checks if a given API exists in the registry
-     *
-     * @param apiId UUID of the API.
-     * @return boolean result
-     * @throws APIManagementException If failed to check if API exist.
-     */
-    @Override
-    public boolean checkIfAPIExists(String apiId) throws APIManagementException {
-        boolean status;
-        try {
-            status = getApiDAO().getAPISummary(apiId) != null;
-        } catch (APIMgtDAOException e) {
-            String errorMsg = "Couldn't get APISummary for " + apiId;
-            log.error(errorMsg, e);
-            throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
-        }
-        return status;
     }
 
     /**
@@ -861,26 +847,26 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
 
             if (documentInfo.getPermission() != null && !("").equals(documentInfo.getPermission())) {
                 HashMap roleNamePermissionList;
-                roleNamePermissionList = getAPIPermissionArray(documentInfo.getPermission());
+                roleNamePermissionList = APIUtils.getAPIPermissionArray(documentInfo.getPermission());
                 docBuilder.permissionMap(roleNamePermissionList);
             }
 
             document = docBuilder.build();
 
-            if (!getApiDAO().isDocumentExist(apiId, document)) {
+            if (getApiDAO().isDocumentExist(apiId, document)) {
                 getApiDAO().updateDocumentInfo(apiId, document, getUsername());
                 return document.getId();
             } else {
-                String msg = "Document already exist for the api " + apiId;
+                String msg = "Document " + document.getName() + " not found for the api " + apiId;
                 log.error(msg);
-                throw new APIManagementException(msg, ExceptionCodes.DOCUMENT_ALREADY_EXISTS);
+                throw new APIManagementException(msg, ExceptionCodes.DOCUMENT_NOT_FOUND);
             }
         } catch (APIMgtDAOException e) {
-            String errorMsg = "Unable to add documentation";
+            String errorMsg = "Unable to update the documentation";
             log.error(errorMsg, e);
             throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
         } catch (ParseException e) {
-            String errorMsg = "Unable to add documentation due to json parse error";
+            String errorMsg = "Unable to update the documentation due to json parse error";
             log.error(errorMsg, e);
             throw new APIManagementException(errorMsg, e, ExceptionCodes.JSON_PARSE_ERROR);
         }
@@ -939,14 +925,24 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
      */
     @Override
     public void deleteAPI(String identifier) throws APIManagementException {
+        APIGateway gateway = getApiGateway();
         try {
             if (getAPISubscriptionCountByAPI(identifier) == 0) {
                 API api = getApiDAO().getAPI(identifier);
                 if (api != null) {
+                    String apiWfStatus = api.getWorkflowStatus();
                     API.APIBuilder apiBuilder = new API.APIBuilder(api);
+
+                    //Delete API in gateway
+
+                    gateway.deleteAPI(api);
                     getApiDAO().deleteAPI(identifier);
                     getApiLifecycleManager().removeLifecycle(apiBuilder.getLifecycleInstanceId());
                     APIUtils.logDebug("API with id " + identifier + " was deleted successfully.", log);
+                    
+                    if (APILCWorkflowStatus.PENDING.toString().equals(apiWfStatus)) {
+                       cleanupPendingTaskForAPIStateChange(identifier);
+                    }
                     // 'API_M Functions' related code
                     //Create a payload with event specific details
                     Map<String, String> eventPayload = new HashMap<>();
@@ -971,6 +967,10 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
             String errorMsg = "Error occurred while Disassociating the API with Lifecycle id " + identifier;
             log.error(errorMsg, e);
             throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_LIFECYCLE_EXCEPTION);
+        } catch (GatewayException e) {
+            String message = "Error occurred while deleting API with id - " + identifier + " from gateway";
+            log.error(message, e);
+            throw new APIManagementException(message, ExceptionCodes.GATEWAY_EXCEPTION);
         }
     }
 
@@ -979,7 +979,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
      * @param offset Offset
      * @param query  Search query
      * @return List of APIS.
-     * @throws APIManagementException If failed to search APIs.
+     * @throws APIManagementException If failed to formatApiSearch APIs.
      */
     @Override
     public List<API> searchAPIs(Integer limit, Integer offset, String query) throws APIManagementException {
@@ -988,12 +988,12 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
         try {
             //TODO: Need to validate users roles against results returned
             if (query != null && !query.isEmpty()) {
-                List<String> roles = new ArrayList<>();
                 String user = "admin";
+                Set<String> roles = APIUtils.getAllRolesOfUser(user);
                 //TODO get the logged in user and user roles from key manager.
-                apiResults = getApiDAO().searchAPIs(roles, user, query, offset, limit);
+                apiResults = getApiDAO().searchAPIs(roles, user, query, ApiType.STANDARD, offset, limit);
             } else {
-                apiResults = getApiDAO().getAPIs();
+                apiResults = getApiDAO().getAPIs(ApiType.STANDARD);
             }
         } catch (APIMgtDAOException e) {
             String errorMsg = "Error occurred while Searching the API with query " + query;
@@ -1036,47 +1036,6 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
         }
     }
 
-    /**
-     * This method updates Swagger 2.0 resources in the registry
-     *
-     * @param apiId    id of the String
-     * @param jsonText json text to be saved in the registry
-     * @throws APIManagementException If failed to save swagger definition.
-     */
-    @Override
-    public void saveSwagger20Definition(String apiId, String jsonText) throws APIManagementException {
-        try {
-            LocalDateTime localDateTime = LocalDateTime.now();
-            API api = getAPIbyUUID(apiId);
-            Map<String, UriTemplate> oldUriTemplateMap = api.getUriTemplates();
-            List<APIResource> apiResourceList = apiDefinitionFromSwagger20.parseSwaggerAPIResources(new StringBuilder
-                    (jsonText));
-            Map<String, UriTemplate> updatedUriTemplateMap = new HashMap<>();
-            for (APIResource apiResource : apiResourceList) {
-                updatedUriTemplateMap.put(apiResource.getUriTemplate().getTemplateId(), apiResource.getUriTemplate());
-            }
-            Map<String, UriTemplate> uriTemplateMapNeedTobeUpdate = APIUtils.getMergedUriTemplates(oldUriTemplateMap,
-                    updatedUriTemplateMap);
-            API.APIBuilder apiBuilder = new API.APIBuilder(api);
-            apiBuilder.uriTemplates(uriTemplateMapNeedTobeUpdate);
-            apiBuilder.updatedBy(getUsername());
-            apiBuilder.lastUpdatedTime(localDateTime);
-
-            api = apiBuilder.build();
-            GatewaySourceGenerator gatewaySourceGenerator = new GatewaySourceGeneratorImpl(api);
-            String existingGatewayConfig = getApiGatewayConfig(apiId);
-            String updatedGatewayConfig = gatewaySourceGenerator
-                    .getGatewayConfigFromSwagger(existingGatewayConfig, jsonText);
-            getApiDAO().updateAPI(apiId, api);
-            getApiDAO().updateSwaggerDefinition(apiId, jsonText, getUsername());
-            getApiDAO().updateGatewayConfig(apiId, updatedGatewayConfig, getUsername());
-        } catch (APIMgtDAOException e) {
-            String errorMsg = "Couldn't update the Swagger Definition";
-            log.error(errorMsg, e);
-            throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
-        }
-    }
-
 
     /**
      * This method returns the lifecycle data for an API including current state,next states.
@@ -1090,7 +1049,8 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
         try {
             API api = getApiDAO().getAPISummary(apiId);
             if (api != null) {
-                return getApiLifecycleManager().getCurrentLifecycleState(api.getLifecycleInstanceId());
+                return getApiLifecycleManager()
+                        .getLifecycleDataForState(api.getLifecycleInstanceId(), api.getLifeCycleStatus());
             } else {
                 throw new APIMgtResourceNotFoundException("Couldn't retrieve API Summary for " + apiId);
             }
@@ -1131,76 +1091,6 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
     }
 
     /**
-     * Save the thumbnail icon for api
-     *
-     * @param apiId       apiId of api
-     * @param inputStream inputStream of image
-     * @param dataType    Data type of the image.
-     * @throws APIManagementException If failed save thumbnail.
-     */
-    @Override
-    public void saveThumbnailImage(String apiId, InputStream inputStream, String dataType)
-            throws APIManagementException {
-        try {
-            getApiDAO().updateImage(apiId, inputStream, dataType, getUsername());
-        } catch (APIMgtDAOException e) {
-            String errorMsg = "Couldn't save the thumbnail image";
-            log.error(errorMsg, e);
-            throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
-        }
-    }
-
-    /**
-     * Get the thumbnail icon for api
-     *
-     * @param apiId apiId of api
-     * @return thumbnail image as a stream object.
-     * @throws APIManagementException If failed to get thumbnail.
-     */
-    @Override
-    public InputStream getThumbnailImage(String apiId) throws APIManagementException {
-        try {
-            return getApiDAO().getImage(apiId);
-        } catch (APIMgtDAOException e) {
-            String errorMsg = "Couldn't retrieve thumbnail for api " + apiId;
-            log.error(errorMsg, e);
-            throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
-        }
-    }
-
-    @Override
-    public void updateApiGatewayConfig(String apiId, String configString) throws APIManagementException {
-        API api = getAPIbyUUID(apiId);
-        GatewaySourceGenerator gatewaySourceGenerator = new GatewaySourceGeneratorImpl(api);
-
-        try {
-            String swagger = gatewaySourceGenerator.getSwaggerFromGatewayConfig(configString);
-            getApiDAO().updateSwaggerDefinition(apiId, swagger, getUsername());
-            getApiDAO().updateGatewayConfig(apiId, configString, getUsername());
-        } catch (APIMgtDAOException e) {
-            log.error("Couldn't update configuration for apiId " + apiId, e);
-            throw new APIManagementException("Couldn't update configuration for apiId " + apiId,
-                    ExceptionCodes.APIMGT_DAO_EXCEPTION);
-        } catch (APITemplateException e) {
-            log.error("Error generating swagger from gateway config " + apiId, e);
-            throw new APIManagementException("Error generating swagger from gateway config " + apiId,
-                    ExceptionCodes.TEMPLATE_EXCEPTION);
-        }
-    }
-
-    @Override
-    public String getApiGatewayConfig(String apiId) throws APIManagementException {
-        try {
-            return getApiDAO().getGatewayConfig(apiId);
-
-        } catch (APIMgtDAOException e) {
-            log.error("Couldn't retrieve swagger definition for apiId " + apiId, e);
-            throw new APIManagementException("Couldn't retrieve gateway configuration for apiId " + apiId,
-                    ExceptionCodes.APIMGT_DAO_EXCEPTION);
-        }
-    }
-
-    /**
      * Return list of endpoints
      *
      * @return List of Endpoints..
@@ -1208,7 +1098,14 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
      */
     @Override
     public List<Endpoint> getAllEndpoints() throws APIManagementException {
-        return getApiDAO().getEndpoints();
+        try {
+            return getApiDAO().getEndpoints();
+        } catch (APIMgtDAOException e) {
+            String msg = "Failed to get all Endpoints";
+            log.error(msg, e);
+            throw new APIManagementException(msg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+
     }
 
     /**
@@ -1220,12 +1117,24 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
      */
     @Override
     public Endpoint getEndpoint(String endpointId) throws APIManagementException {
-        return getApiDAO().getEndpoint(endpointId);
+        try {
+            return getApiDAO().getEndpoint(endpointId);
+        } catch (APIMgtDAOException e) {
+            String msg = "Failed to get Endpoint : " + endpointId;
+            log.error(msg, e);
+            throw new APIManagementException(msg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
     }
 
     @Override
     public Endpoint getEndpointByName(String endpointName) throws APIManagementException {
-        return getApiDAO().getEndpointByName(endpointName);
+        try {
+            return getApiDAO().getEndpointByName(endpointName);
+        } catch (APIMgtDAOException e) {
+            String msg = "Failed to get Endpoint : " + endpointName;
+            log.error(msg, e);
+            throw new APIManagementException(msg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
     }
 
     /**
@@ -1237,8 +1146,12 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
      */
     @Override
     public String addEndpoint(Endpoint endpoint) throws APIManagementException {
+
+        APIGateway gateway = getApiGateway();
+
         Endpoint.Builder builder = new Endpoint.Builder(endpoint);
         builder.id(UUID.randomUUID().toString());
+        builder.applicableLevel(APIMgtConstants.GLOBAL_ENDPOINT);
         Endpoint endpoint1 = builder.build();
         String key = endpoint.getName();
         if (key == null || StringUtils.isEmpty(key)) {
@@ -1251,9 +1164,17 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
             throw new APIManagementException("Endpoint already exist with name " + key,
                     ExceptionCodes.ENDPOINT_ALREADY_EXISTS);
         }
-        getApiDAO().addEndpoint(endpoint1);
+        gateway.addEndpoint(endpoint1);
+
+        try {
+
+            getApiDAO().addEndpoint(endpoint1);
+        } catch (APIMgtDAOException e) {
+            String msg = "Failed to add Endpoint : " + endpoint.getName();
+            log.error(msg, e);
+            throw new APIManagementException(msg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
         //update endpoint config in gateway
-        publishEndpointConfigToGateway();
         return endpoint1.getId();
     }
 
@@ -1265,9 +1186,17 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
      */
     @Override
     public void updateEndpoint(Endpoint endpoint) throws APIManagementException {
-        getApiDAO().updateEndpoint(endpoint);
+        APIGateway gateway = getApiGateway();
+        gateway.updateEndpoint(endpoint);
+
+        try {
+            getApiDAO().updateEndpoint(endpoint);
+        } catch (APIMgtDAOException e) {
+            String msg = "Failed to update Endpoint : " + endpoint.getName();
+            log.error(msg, e);
+            throw new APIManagementException(msg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
         //update endpoint config in gateway
-        publishEndpointConfigToGateway();
     }
 
     /**
@@ -1278,9 +1207,25 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
      */
     @Override
     public void deleteEndpoint(String endpointId) throws APIManagementException {
-        getApiDAO().deleteEndpoint(endpointId);
-        //update endpoint config in gateway
-        publishEndpointConfigToGateway();
+        APIGateway gateway = getApiGateway();
+
+        Endpoint endpoint = getEndpoint(endpointId);
+        if (!getApiDAO().isEndpointAssociated(endpointId)) {
+            try {
+
+                getApiDAO().deleteEndpoint(endpointId);
+            } catch (APIMgtDAOException e) {
+                String msg = "Failed to delete Endpoint : " + endpointId;
+                log.error(msg, e);
+                throw new APIManagementException(msg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+            }
+            gateway.deleteEndpoint(endpoint);
+
+        } else {
+            String msg = "Endpoint Already Have Associated With API";
+            log.error(msg);
+            throw new APIManagementException(msg, ExceptionCodes.ENDPOINT_DELETE_FAILED);
+        }
     }
 
     /**
@@ -1306,44 +1251,24 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
         }
     }
 
-    /**
-     * @see org.wso2.carbon.apimgt.core.api.APIPublisher#addApiFromDefinition(String)
-     */
     @Override
-    public String addApiFromDefinition(String swaggerResourceUrl) throws APIManagementException {
-        URL url;
-        HttpURLConnection urlConn;
+    public String addApiFromDefinition(HttpURLConnection urlConn) throws APIManagementException {
         try {
-            url = new URL(swaggerResourceUrl);
-            urlConn = (HttpURLConnection) url.openConnection();
             urlConn.setDoOutput(true);
             urlConn.setRequestMethod(APIMgtConstants.HTTP_GET);
+            urlConn.connect();
             int responseCode = urlConn.getResponseCode();
             if (responseCode == 200) {
-                String responseStr = new String(IOUtils.toByteArray(urlConn.getInputStream()), "UTF-8");
-                API.APIBuilder apiBuilder = apiDefinitionFromSwagger20.generateApiFromSwaggerResource(getUsername(),
-                        responseStr);
-                apiBuilder.corsConfiguration(new CorsConfiguration());
-                apiBuilder.apiDefinition(responseStr);
-                addAPI(apiBuilder);
-                return apiBuilder.getId();
+                return addApiFromDefinition(urlConn.getInputStream());
             } else {
-                throw new APIManagementException("Error while getting swagger resource from url : " + url,
+                throw new APIManagementException("Error while getting swagger resource from url : " + urlConn.getURL(),
                         ExceptionCodes.API_DEFINITION_MALFORMED);
             }
-        } catch (UnsupportedEncodingException e) {
-            String msg = "Unsupported encoding exception while getting the swagger resource from url";
-            log.error(msg, e);
-            throw new APIManagementException(msg, ExceptionCodes.API_DEFINITION_MALFORMED);
         } catch (ProtocolException e) {
             String msg = "Protocol exception while getting the swagger resource from url";
             log.error(msg, e);
             throw new APIManagementException(msg, ExceptionCodes.API_DEFINITION_MALFORMED);
-        } catch (MalformedURLException e) {
-            String msg = "Malformed url while getting the swagger resource from url";
-            log.error(msg, e);
-            throw new APIManagementException(msg, ExceptionCodes.API_DEFINITION_MALFORMED);
-        } catch (IOException e) {
+        }  catch (IOException e) {
             String msg = "Error while getting the swagger resource from url";
             log.error(msg, e);
             throw new APIManagementException(msg, ExceptionCodes.API_DEFINITION_MALFORMED);
@@ -1384,46 +1309,16 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
     }
 
     @Override
-    public List<Label> getAllLabels() throws APIManagementException {
+    public List<Label> getAllLabels() throws LabelException {
 
         try {
             return getLabelDAO().getLabels();
         } catch (APIMgtDAOException e) {
             String msg = "Error occurred while retrieving labels";
             log.error(msg, e);
-            throw new APIManagementException(msg, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+            throw new LabelException(msg, ExceptionCodes.LABEL_EXCEPTION);
         }
     }
-
-    @Override
-    public void registerGatewayLabels(List<Label> labels) throws APIManagementException {
-
-        String overwriteLabels = System.getProperty(APIMgtConstants.OVERWRITE_LABELS, "false");
-        List<String> labelNames = new ArrayList<>();
-        for (Label label : labels) {
-            labelNames.add(label.getName());
-        }
-
-        try {
-            List<Label> existingLabels = getLabelDAO().getLabelsByName(labelNames);
-            if (!existingLabels.isEmpty()) {
-                labels.removeAll(existingLabels); // Remove already existing labels from the list
-            }
-
-            if (Boolean.parseBoolean(overwriteLabels)) {
-                for (Label label : existingLabels) {
-                    getLabelDAO().updateLabel(label);
-                }
-            }
-            getLabelDAO().addLabels(labels);
-
-        } catch (APIMgtDAOException e) {
-            String errorMsg = "Error occurred while adding label information";
-            log.error(errorMsg, e);
-            throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
-        }
-    }
-
 
     /**
      * @see APIPublisher#getLastUpdatedTimeOfEndpoint(String)
@@ -1441,41 +1336,6 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
         }
 
         return lastUpdatedTime;
-    }
-
-    /**
-     * Publishing new API configurations to the subscribers
-     *
-     * @param api API object
-     * @throws GatewayException If failed to publish to gateways.
-     */
-    private void publishToGateway(API api) throws GatewayException {
-        APIGatewayPublisher gateway = APIManagerFactory.getInstance().getGateway();
-        boolean isPublished = gateway.publishToGateway(api);
-        if (isPublished) {
-            APIUtils.logDebug(
-                    "API " + api.getName() + "-" + api.getVersion() + " was published to gateway successfully.", log);
-        } else {
-            APIUtils.logDebug("Error when publishing API " + api.getName() + "-" + api.getVersion() + " to gateway.",
-                    log);
-        }
-    }
-
-    /**
-     * Publishing new endpoint configurations to the subscribers
-     *
-     * @throws APIManagementException If failed to publish endpoint to gateway.
-     */
-    private void publishEndpointConfigToGateway() throws APIManagementException {
-        GatewaySourceGenerator template = new GatewaySourceGeneratorImpl();
-        String endpointConfig = template.getEndpointConfigStringFromTemplate(getAllEndpoints());
-        APIGatewayPublisher publisher = APIManagerFactory.getInstance().getGateway();
-        boolean status = publisher.publishEndpointConfigToGateway(endpointConfig);
-        if (status) {
-            log.info("Endpoint configuration published successfully");
-        } else {
-            log.error("Error in endpoint configuration publishing");
-        }
     }
 
     /**
@@ -1531,9 +1391,66 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
         return eventObservers;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void completeWorkflow(WorkflowExecutor workflowExecutor, Workflow workflow) throws APIManagementException {
-        // TODO Auto-generated method stub
+    public void removePendingLifecycleWorkflowTaskForAPI(String apiId) throws APIManagementException {
         
+        API api = getApiDAO().getAPI(apiId);
+        if (api != null) {
+            if (APILCWorkflowStatus.PENDING.toString().equals(api.getWorkflowStatus())) {
+                try {
+                    //change the state back
+                    getApiDAO().updateAPIWorkflowStatus(apiId, APILCWorkflowStatus.APPROVED);
+                    
+                    // call executor's cleanup task
+                    cleanupPendingTaskForAPIStateChange(apiId);
+                    
+                } catch (APIMgtDAOException e) {
+                    String msg = "Error occurred while changing api lifecycle workflow status";
+                    log.error(msg, e);
+                    throw new APIManagementException(msg, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+                }
+            } else {
+                String msg = "API does not have a pending lifecycle state change.";
+                log.error(msg);
+                throw new APIManagementException(msg, ExceptionCodes.WORKFLOW_NO_PENDING_TASK);
+            }
+        } else {
+            String msg = "Couldn't found API with ID " + apiId;
+            log.error(msg);
+            throw new APIManagementException(msg, ExceptionCodes.API_NOT_FOUND);
+        }      
+    }
+    
+    private void cleanupPendingTaskForAPIStateChange(String apiId) throws APIManagementException {
+        String workflowExtRef = getWorkflowDAO().getExternalWorkflowReferenceForPendingTask(apiId,
+                WorkflowConstants.WF_TYPE_AM_API_STATE);
+        if (workflowExtRef != null) {
+            WorkflowExecutor executor = WorkflowExecutorFactory.getInstance()
+                    .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_API_STATE);
+            try {
+                executor.cleanUpPendingTask(workflowExtRef);
+            } catch (WorkflowException e) {
+                String warn = "Failed to clean pending api state change task for " + apiId;
+                // failed cleanup processes are ignored to prevent failing the deletion process
+                log.warn(warn, e.getLocalizedMessage());
+            }
+            getWorkflowDAO().deleteWorkflowEntryforExternalReference(workflowExtRef);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isEndpointExist(String name) throws APIManagementException {
+        try {
+            return getApiDAO().isEndpointExist(name);
+        } catch (APIMgtDAOException e) {
+            String msg = "Couldn't find existence of endpoint :" + name;
+            throw new APIManagementException(msg, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
     }
 }

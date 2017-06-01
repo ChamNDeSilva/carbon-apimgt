@@ -32,31 +32,79 @@ import java.util.List;
  */
 public interface PolicyDAO {
 
+
+    /**
+     * Gets a Policy by Name and Level
+     *
+     * @param policyLevel Policy level to which this policy belongs to
+     * @param policyName Policy Name
+     * @return {@link Policy} Gets a Policy by given name and level
+     * @throws APIMgtDAOException If failed to get the Policy
+     */
     Policy getPolicy(String policyLevel, String policyName) throws APIMgtDAOException;
 
+    /**
+     * Gets a Policy by uuid
+     *
+     * @param uuid Policy uuid
+     * @param policyLevel Policy level to which this policy belongs to
+     * @return {@link Policy} Gets a Policy by uuid
+     * @throws APIMgtDAOException If failed to get the Policy
+     */
+    Policy getPolicyByUuid(String uuid, String policyLevel) throws APIMgtDAOException;
+
+    /**
+     * Gets all the Policies belongs to a level
+     *
+     * @param policyLevel Policy level
+     * @return {@link List} List Policies belongs to the provided level
+     * @throws APIMgtDAOException If failed to get Policies
+     */
     List<Policy> getPolicies(String policyLevel) throws APIMgtDAOException;
 
+    /**
+     * Adds a Policy belongs to a level
+     *
+     * @param policyLevel Policy Level to which this Policy belongs to
+     * @param policy Policy to add
+     * @throws APIMgtDAOException If failed to add a Policy
+     */
     void addPolicy(String policyLevel, Policy policy) throws APIMgtDAOException;
 
-    void deletePolicy(String policyName);
+    /**
+     * Updates a Policy belongs to a level
+     *
+     * @param policy Policy to update
+     * @throws APIMgtDAOException If failed to add a Policy
+     */
+    void updatePolicy(Policy policy) throws APIMgtDAOException;
+
+    /**
+     * Deletes a Policy by Name and Level
+     *
+     * @param policyName Policy Name to delete
+     * @param policyLevel Policy Level to which the policy belongs to
+     * @throws APIMgtDAOException If failed to delete a policy.
+     */
+    void deletePolicy(String policyName, String policyLevel) throws APIMgtDAOException;
+
+    /**
+     * Deletes a Policy by Name and Level
+     *
+     * @param uuid Policy Name to delete
+     * @param policyLevel Policy Level to which the policy belongs to
+     * @throws APIMgtDAOException If failed to delete a policy.
+     */
+    void deletePolicyByUuid(String uuid, String policyLevel) throws APIMgtDAOException;
 
     /**
      * Retrieves Subscription Policy by name
      *
      * @param policyName Subscription policy name
      * @return {@link SubscriptionPolicy} of given UUID
-     * @throws APIMgtDAOException
+     * @throws APIMgtDAOException If failed to get a Subscription Policy by Name
      */
     SubscriptionPolicy getSubscriptionPolicy(String policyName) throws APIMgtDAOException;
-
-    /**
-     * Retrieves Subscription Policy by UUID
-     *
-     * @param policyId  Subscription policy ID
-     * @return {@link SubscriptionPolicy} of given UUID
-     * @throws APIMgtDAOException   If failed to get subscription policy.
-     */
-    SubscriptionPolicy getSubscriptionPolicyById(String policyId) throws APIMgtDAOException;
 
     /**
      * Retrieves Application Policy by UUID

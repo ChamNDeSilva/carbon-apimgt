@@ -4,7 +4,7 @@
     <parent>
         <artifactId>apimgt</artifactId>
         <groupId>org.wso2.carbon.apimgt</groupId>
-        <version>7.0.3-SNAPSHOT</version>
+        <version>7.0.24-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -39,6 +39,12 @@
                                     <directory>../org.wso2.carbon.apimgt.rest.api.store/src/main/resources</directory>
                                     <includes>
                                         <include>store-api.yaml</include>
+                                    </includes>
+                                </resource>
+                                <resource>
+                                    <directory>../org.wso2.carbon.apimgt.rest.api.admin/src/main/resources</directory>
+                                    <includes>
+                                        <include>admin-api.yaml</include>
                                     </includes>
                                 </resource>
                             </resources>

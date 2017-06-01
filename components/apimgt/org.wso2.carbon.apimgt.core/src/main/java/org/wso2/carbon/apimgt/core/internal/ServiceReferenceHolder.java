@@ -19,13 +19,12 @@ package org.wso2.carbon.apimgt.core.internal;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.wso2.carbon.apimgt.core.APIMConfigurations;
-//import org.wso2.carbon.kernel.configprovider.CarbonConfigurationException;
-//import org.wso2.carbon.kernel.configprovider.ConfigProvider;
+import org.wso2.carbon.apimgt.core.configuration.models.APIMConfigurations;
+import org.wso2.carbon.kernel.configprovider.CarbonConfigurationException;
+import org.wso2.carbon.kernel.configprovider.ConfigProvider;
 
 /**
  * Class used to hold the APIM configuration
- * TODO refactor class when kernal is updated to 5.2.0
  */
 public class ServiceReferenceHolder {
     private static final Logger log = LoggerFactory.getLogger(ServiceReferenceHolder.class);
@@ -45,21 +44,20 @@ public class ServiceReferenceHolder {
         this.configProvider = configProvider;
     }
 
-    public ConfigProvider getConfigProvider() {
-        return configProvider;
-    }
-
     public APIMConfigurations getAPIMConfiguration() {
-        /*try {
-            config = ServiceReferenceHolder.getInstance().getConfigProvider()
-                    .getConfigurationObject(APIMConfigurations.class);
+        try {
+            if (configProvider != null) {
+                config = configProvider.getConfigurationObject(APIMConfigurations.class);
+            } else {
+                log.error("Configuration provider is null");
+            }
         } catch (CarbonConfigurationException e) {
-            log.error("error getting config", e);
-        }*/
+            log.error("error getting config : org.wso2.carbon.apimgt.core.internal.APIMConfiguration", e);
+        }
 
         if (config == null) {
             config = new APIMConfigurations();
-            log.info("Setting default configurations");
+            log.info("Setting default configurations...");
         }
 
         return config;

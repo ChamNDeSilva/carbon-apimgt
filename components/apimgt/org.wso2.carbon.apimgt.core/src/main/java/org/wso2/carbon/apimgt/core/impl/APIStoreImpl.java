@@ -20,42 +20,50 @@
 
 package org.wso2.carbon.apimgt.core.impl;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.wso2.carbon.apimgt.core.api.APIGateway;
 import org.wso2.carbon.apimgt.core.api.APIMObservable;
 import org.wso2.carbon.apimgt.core.api.APIStore;
 import org.wso2.carbon.apimgt.core.api.EventObserver;
+import org.wso2.carbon.apimgt.core.api.GatewaySourceGenerator;
+import org.wso2.carbon.apimgt.core.api.IdentityProvider;
 import org.wso2.carbon.apimgt.core.api.KeyManager;
+import org.wso2.carbon.apimgt.core.api.LabelExtractor;
 import org.wso2.carbon.apimgt.core.api.WorkflowExecutor;
 import org.wso2.carbon.apimgt.core.api.WorkflowResponse;
 import org.wso2.carbon.apimgt.core.dao.APISubscriptionDAO;
 import org.wso2.carbon.apimgt.core.dao.ApiDAO;
+import org.wso2.carbon.apimgt.core.dao.ApiType;
 import org.wso2.carbon.apimgt.core.dao.ApplicationDAO;
 import org.wso2.carbon.apimgt.core.dao.LabelDAO;
 import org.wso2.carbon.apimgt.core.dao.PolicyDAO;
 import org.wso2.carbon.apimgt.core.dao.TagDAO;
 import org.wso2.carbon.apimgt.core.dao.WorkflowDAO;
-import org.wso2.carbon.apimgt.core.dao.impl.CommentDAO;
-import org.wso2.carbon.apimgt.core.dao.impl.RatingDAO;
+import org.wso2.carbon.apimgt.core.exception.APICommentException;
 import org.wso2.carbon.apimgt.core.exception.APIManagementException;
 import org.wso2.carbon.apimgt.core.exception.APIMgtDAOException;
 import org.wso2.carbon.apimgt.core.exception.APIMgtResourceAlreadyExistsException;
+import org.wso2.carbon.apimgt.core.exception.APIMgtResourceNotFoundException;
+import org.wso2.carbon.apimgt.core.exception.APIRatingException;
 import org.wso2.carbon.apimgt.core.exception.ExceptionCodes;
+import org.wso2.carbon.apimgt.core.exception.GatewayException;
 import org.wso2.carbon.apimgt.core.exception.KeyManagementException;
+import org.wso2.carbon.apimgt.core.exception.LabelException;
 import org.wso2.carbon.apimgt.core.exception.WorkflowException;
-import org.wso2.carbon.apimgt.core.factory.KeyManagerHolder;
 import org.wso2.carbon.apimgt.core.models.API;
 import org.wso2.carbon.apimgt.core.models.APIStatus;
 import org.wso2.carbon.apimgt.core.models.AccessTokenInfo;
 import org.wso2.carbon.apimgt.core.models.AccessTokenRequest;
 import org.wso2.carbon.apimgt.core.models.Application;
-import org.wso2.carbon.apimgt.core.models.ApplicationCreationResponse;
-import org.wso2.carbon.apimgt.core.models.ApplicationCreationWorkflow;
 import org.wso2.carbon.apimgt.core.models.Comment;
+import org.wso2.carbon.apimgt.core.models.CorsConfiguration;
 import org.wso2.carbon.apimgt.core.models.Event;
 import org.wso2.carbon.apimgt.core.models.Label;
 import org.wso2.carbon.apimgt.core.models.OAuthAppRequest;
@@ -63,19 +71,35 @@ import org.wso2.carbon.apimgt.core.models.OAuthApplicationInfo;
 import org.wso2.carbon.apimgt.core.models.Rating;
 import org.wso2.carbon.apimgt.core.models.Subscription;
 import org.wso2.carbon.apimgt.core.models.SubscriptionResponse;
-import org.wso2.carbon.apimgt.core.models.SubscriptionWorkflow;
 import org.wso2.carbon.apimgt.core.models.Tag;
-import org.wso2.carbon.apimgt.core.models.Workflow;
+import org.wso2.carbon.apimgt.core.models.UriTemplate;
+import org.wso2.carbon.apimgt.core.models.User;
 import org.wso2.carbon.apimgt.core.models.WorkflowStatus;
 import org.wso2.carbon.apimgt.core.models.policy.Policy;
+import org.wso2.carbon.apimgt.core.template.APITemplateException;
+import org.wso2.carbon.apimgt.core.template.dto.TemplateBuilderDTO;
 import org.wso2.carbon.apimgt.core.util.APIMgtConstants;
-import org.wso2.carbon.apimgt.core.util.APIMgtConstants.SubscriptionStatus;
+import org.wso2.carbon.apimgt.core.util.APIMgtConstants.ApplicationStatus;
 import org.wso2.carbon.apimgt.core.util.APIMgtConstants.WorkflowConstants;
 import org.wso2.carbon.apimgt.core.util.APIUtils;
 import org.wso2.carbon.apimgt.core.util.ApplicationUtils;
 import org.wso2.carbon.apimgt.core.util.KeyManagerConstants;
+import org.wso2.carbon.apimgt.core.workflow.ApplicationCreationResponse;
+import org.wso2.carbon.apimgt.core.workflow.ApplicationCreationWorkflow;
+import org.wso2.carbon.apimgt.core.workflow.ApplicationDeletionWorkflow;
+import org.wso2.carbon.apimgt.core.workflow.ApplicationUpdateWorkflow;
+import org.wso2.carbon.apimgt.core.workflow.SubscriptionCreationWorkflow;
+import org.wso2.carbon.apimgt.core.workflow.SubscriptionDeletionWorkflow;
 import org.wso2.carbon.apimgt.core.workflow.WorkflowExecutorFactory;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.ProtocolException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -96,7 +120,7 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
     private Map<String, EventObserver> eventObservers = new HashMap<>();
 
     private static final Logger log = LoggerFactory.getLogger(APIStoreImpl.class);
-    private TagDAO tagDAO;
+    APIGateway gateway = getApiGateway();
 
     /**
      * Constructor.
@@ -109,24 +133,22 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
      * @param tagDAO Tag Data Access Object
      * @param labelDAO Label Data Access Object
      * @param workflowDAO WorkFlow Data Access Object
-     * @param commentDAO Comment Data Access Object
-     * @param ratingDAO Rating Data Access Object
      */
-    public APIStoreImpl(String username, ApiDAO apiDAO, ApplicationDAO applicationDAO,
-            APISubscriptionDAO apiSubscriptionDAO, PolicyDAO policyDAO, TagDAO tagDAO, LabelDAO labelDAO,
-            WorkflowDAO workflowDAO, CommentDAO commentDAO, RatingDAO ratingDAO) {
-        super(username, apiDAO, applicationDAO, apiSubscriptionDAO, policyDAO, new APILifeCycleManagerImpl(), labelDAO,
-                workflowDAO, commentDAO, ratingDAO);
-        this.tagDAO = tagDAO;
+    public APIStoreImpl(String username, IdentityProvider idp, ApiDAO apiDAO, ApplicationDAO applicationDAO,
+                        APISubscriptionDAO apiSubscriptionDAO, PolicyDAO policyDAO, TagDAO tagDAO, LabelDAO labelDAO,
+                        WorkflowDAO workflowDAO, GatewaySourceGenerator gatewaySourceGenerator,
+                        APIGateway apiGateway) {
+        super(username, idp, apiDAO, applicationDAO, apiSubscriptionDAO, policyDAO, new APILifeCycleManagerImpl(),
+                labelDAO, workflowDAO, tagDAO, gatewaySourceGenerator, apiGateway);
     }
 
     @Override
     public List<API> getAllAPIsByStatus(int offset, int limit, String[] statuses) throws APIManagementException {
         List<API> apiResults = null;
         try {
-            apiResults = getApiDAO().getAPIsByStatus(new ArrayList<>(Arrays.asList(statuses)));
+            apiResults = getApiDAO().getAPIsByStatus(new ArrayList<>(Arrays.asList(statuses)), ApiType.STANDARD);
         } catch (APIMgtDAOException e) {
-            String errorMsg = "Error occurred while fetching APIs for the given statuses - "
+            String errorMsg = "Error occurred while fetching APIs for the given statuses     - "
                     + Arrays.toString(statuses);
             log.error(errorMsg, e);
             throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
@@ -149,6 +171,7 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
         return application;
     }
 
+
     @Override
     public List<Application> getApplications(String subscriber, String groupId) throws APIManagementException {
         List<Application> applicationList = null;
@@ -163,13 +186,66 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
         return applicationList;
     }
 
+    /**
+     * @see APIStore#updateApplication(String, Application)
+     */
     @Override
-    public void updateApplication(String uuid, Application application) throws APIManagementException {
+    public WorkflowResponse updateApplication(String uuid, Application application) throws APIManagementException {
         try {
-            application.setId(uuid);
-            application.setUpdatedUser(getUsername());
-            application.setUpdatedTime(LocalDateTime.now());
-            getApplicationDAO().updateApplication(uuid, application);
+            //get old app 
+            Application existingApplication = getApplicationDAO().getApplication(uuid);
+            if (existingApplication != null) {
+                WorkflowExecutor executor = WorkflowExecutorFactory.getInstance()
+                        .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_APPLICATION_UPDATE);
+                ApplicationUpdateWorkflow workflow = new ApplicationUpdateWorkflow(getApplicationDAO(),
+                        getWorkflowDAO());
+                
+                application.setId(uuid);
+                application.setUpdatedUser(getUsername());
+                application.setUpdatedTime(LocalDateTime.now());
+                
+                workflow.setExistingApplication(existingApplication);
+                workflow.setUpdatedApplication(application);
+                workflow.setCreatedBy(getUsername());
+                workflow.setWorkflowReference(application.getId());
+                workflow.setExternalWorkflowReference(UUID.randomUUID().toString());
+                workflow.setCreatedTime(LocalDateTime.now());
+                
+                String workflowDescription = "Update application from : " + existingApplication.toString()
+                        + " to : " + application.toString();
+                workflow.setWorkflowDescription(workflowDescription);
+                
+                //setting attributes for internal use. These are set to use from outside the executor's method
+                //these will be saved in the AM_WORKFLOW table so these can be retrieved later for external wf approval
+                //scenarios. this won't get stored for simple wfs
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_APPLICATION_NAME, application.getName());
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_APPLICATION_UPDATEDBY, application.getUpdatedUser());
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_APPLICATION_TIER, application.getTier());
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_APPLICATION_DESCRIPTION,
+                        application.getDescription());
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_APPLICATION_CALLBACKURL,
+                        application.getCallbackUrl());
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_APPLICATION_GROUPID, application.getGroupId());
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_APPLICATION_PERMISSION,
+                        application.getPermissionString());  
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_APPLICATION_EXISTIN_APP_STATUS,
+                        existingApplication.getStatus());
+
+                WorkflowResponse response = executor.execute(workflow);
+                workflow.setStatus(response.getWorkflowStatus());
+
+                if (WorkflowStatus.CREATED != response.getWorkflowStatus()) {
+                    completeWorkflow(executor, workflow);
+                } else {
+                    getApplicationDAO().updateApplicationState(uuid, ApplicationStatus.APPLICATION_ONHOLD);
+                    addWorkflowEntries(workflow);
+                }             
+                return response;
+            } else {
+                String errorMsg = "Applicaiton does not exist - " + uuid;
+                log.error(errorMsg);
+                throw new APIManagementException(errorMsg, ExceptionCodes.APPLICATION_NOT_FOUND);
+            }
         } catch (APIMgtDAOException e) {
             String errorMsg = "Error occurred while updating the application - " + uuid;
             log.error(errorMsg, e);
@@ -186,7 +262,7 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
                 null); // for now tokenSope = null
         oauthAppRequest.getOAuthApplicationInfo().addParameter(KeyManagerConstants.VALIDITY_PERIOD, validityTime);
         oauthAppRequest.getOAuthApplicationInfo().addParameter(KeyManagerConstants.APP_KEY_TYPE, tokenType);
-        KeyManager keyManager = KeyManagerHolder.getKeyManagerInstance();
+        KeyManager keyManager = APIManagerFactory.getInstance().getKeyManager();
         try {
             OAuthApplicationInfo oauthAppInfo = keyManager.createApplication(oauthAppRequest);
             Map<String, Object> keyDetails = new HashMap<>();
@@ -283,30 +359,35 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
 
             WorkflowExecutor addSubscriptionWFExecutor = WorkflowExecutorFactory.getInstance()
                     .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_CREATION);
-
-            SubscriptionWorkflow workflow = new SubscriptionWorkflow();
+            //Instead of quering the db, we create same subscription object
+            Subscription subscription = new Subscription(subscriptionId, application, api, tier);
+            subscription.setStatus(APIMgtConstants.SubscriptionStatus.ON_HOLD);
+            
+            SubscriptionCreationWorkflow workflow = new SubscriptionCreationWorkflow(getApiSubscriptionDAO(),
+                    getWorkflowDAO(), getApiGateway());
 
             workflow.setCreatedTime(LocalDateTime.now());
             workflow.setExternalWorkflowReference(UUID.randomUUID().toString());
             workflow.setWorkflowReference(subscriptionId);
             workflow.setWorkflowType(WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_CREATION);
-            workflow.setApiName(api.getName());
-            workflow.setApiContext(api.getContext());
-            workflow.setApiVersion(api.getVersion());
-            workflow.setApiProvider(api.getProvider());
-            workflow.setApiId(apiId);
-            workflow.setTierName(tier);
-            workflow.setApplicationName(application.getName());
-            workflow.setApplicationId(applicationId);
+            workflow.setSubscription(subscription);
             workflow.setSubscriber(getUsername());
 
+            String workflowDescription = "Subscription creation workflow for the subscription to api "
+                    + subscription.getApi().getName() + ":" + subscription.getApi().getVersion() + ":"
+                    + subscription.getApi().getProvider() + " using application "
+                    + subscription.getApplication().getName() + " with tier " + subscription.getSubscriptionTier()
+                    + " by " + getUsername();
+            workflow.setWorkflowDescription(workflowDescription);
+
             WorkflowResponse response = addSubscriptionWFExecutor.execute(workflow);
-            workflow.setStatus(response.getWorkflowStatus());
+            workflow.setStatus(response.getWorkflowStatus());            
 
-            addWorkflowEntries(workflow);
-
-            if (WorkflowStatus.APPROVED == response.getWorkflowStatus()) {
+            if (WorkflowStatus.CREATED != response.getWorkflowStatus()) {
                 completeWorkflow(addSubscriptionWFExecutor, workflow);
+            } else {
+                //only add entry to workflow table if it is a pending task
+                addWorkflowEntries(workflow);
             }
 
             subScriptionResponse = new SubscriptionResponse(subscriptionId, response);
@@ -320,12 +401,13 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
         return subScriptionResponse;
     }
 
+    /**
+     * @see APIStore#deleteAPISubscription(String)
+     */
     @Override
-    public void deleteAPISubscription(String subscriptionId) throws APIManagementException {
+    public WorkflowResponse deleteAPISubscription(String subscriptionId) throws APIManagementException {
         try {
 
-            WorkflowExecutor createSubscriptionWFExecutor = WorkflowExecutorFactory.getInstance()
-                    .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_CREATION);
             WorkflowExecutor removeSubscriptionWFExecutor = WorkflowExecutorFactory.getInstance()
                     .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_DELETION);
 
@@ -342,45 +424,38 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
                 log.error(errorMsg);
                 throw new APIManagementException(errorMsg, ExceptionCodes.SUBSCRIPTION_NOT_FOUND);
             } else {
-                if (APIMgtConstants.SubscriptionStatus.ON_HOLD == subscription.getStatus()) {
-                    String pendingRefForSubscription = getWorkflowDAO()
-                            .getExternalWorkflowReferenceForSubscription(subscriptionId);
-                    if (pendingRefForSubscription != null) {
-                        try {
-                            createSubscriptionWFExecutor.cleanUpPendingTask(pendingRefForSubscription);
-                        } catch (WorkflowException e) {
-                            String warn = "Failed to clean pending subscription approval task for " + subscriptionId;
-                            // failed cleanup processes are ignored to prevent failing the deletion process
-                            log.warn(warn, e.getLocalizedMessage());
-                        }
-                    }
-                }
+                //remove pending tasks for subscription creation first 
+                cleanupPendingTaskForSubscriptionDeletion(subscription);
 
-                SubscriptionWorkflow workflow = new SubscriptionWorkflow();
+                SubscriptionDeletionWorkflow workflow = new SubscriptionDeletionWorkflow(getApiSubscriptionDAO(),
+                        getWorkflowDAO(), getApiGateway());
                 workflow.setWorkflowReference(subscriptionId);
+                workflow.setSubscription(subscription);
                 workflow.setWorkflowType(WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_DELETION);
                 workflow.setStatus(WorkflowStatus.CREATED);
                 workflow.setCreatedTime(LocalDateTime.now());
-                workflow.setExternalWorkflowReference(UUID.randomUUID().toString());
+                workflow.setExternalWorkflowReference(UUID.randomUUID().toString());        
+                workflow.setSubscriber(getUsername());
 
-                workflow.setApiName(subscription.getApi().getName());
-                workflow.setApiContext(subscription.getApi().getContext());
-                workflow.setApiVersion(subscription.getApi().getVersion());
-                workflow.setApiProvider(subscription.getApi().getProvider());
-
-                workflow.setApiId(subscription.getApi().getId());
-                workflow.setTierName(subscription.getSubscriptionTier());
-                workflow.setApplicationName(subscription.getApplication().getName());
-                workflow.setApplicationId(subscription.getApplication().getId());
-
+                String workflowDescription = "Subscription deletion workflow for the subscription to api "
+                        + subscription.getApi().getName() + ":" + subscription.getApi().getVersion() + ":"
+                        + subscription.getApi().getProvider() + " using application "
+                        + subscription.getApplication().getName() + " with tier " + subscription.getSubscriptionTier()
+                        + " by " + getUsername();
+                workflow.setWorkflowDescription(workflowDescription);
+                
                 WorkflowResponse response = removeSubscriptionWFExecutor.execute(workflow);
                 workflow.setStatus(response.getWorkflowStatus());
+                
 
-                addWorkflowEntries(workflow);
-
-                if (WorkflowStatus.APPROVED == response.getWorkflowStatus()) {
+                if (WorkflowStatus.CREATED != response.getWorkflowStatus()) {
                     completeWorkflow(removeSubscriptionWFExecutor, workflow);
+                } else {
+                    //add entry to workflow table if it is only in pending state
+                    //haven't changed the subscription's state to allow to use it till approval
+                    addWorkflowEntries(workflow);
                 }
+                return response;
             }
         } catch (APIMgtDAOException e) {
             String errorMsg = "Error occurred while deleting api subscription - " + subscriptionId;
@@ -429,47 +504,614 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
     }
 
     @Override
-    public List<Label> getLabelInfo(List<String> labels) throws APIManagementException {
+    public List<Label> getLabelInfo(List<String> labels, String username) throws LabelException {
 
-        List<Label> labelList;
+        List<Label> filteredLabels;
+        String labelExtractorClassName = getConfig().getLabelExtractorImplClass();
         try {
-            labelList = getLabelDAO().getLabelsByName(labels);
+            List<Label> availableLabels = getLabelDAO().getLabelsByName(labels);
+            LabelExtractor labelExtractor = (LabelExtractor) Class.forName(labelExtractorClassName).newInstance();
+            filteredLabels = labelExtractor.filterLabels(username, availableLabels);
         } catch (APIMgtDAOException e) {
             String errorMsg = "Error occurred while retrieving label information";
             log.error(errorMsg, e);
-            throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+            throw new LabelException(errorMsg, e, ExceptionCodes.LABEL_EXCEPTION);
+        } catch (ClassNotFoundException e) {
+            String errorMsg = "Error occurred while loading the class [class name] " + labelExtractorClassName;
+            log.error(errorMsg, e);
+            throw new LabelException(errorMsg, e, ExceptionCodes.LABEL_EXCEPTION);
+        } catch (IllegalAccessException | InstantiationException e) {
+            String errorMsg = "Error occurred while creating an instance of the class [class name] " +
+                    labelExtractorClassName;
+            log.error(errorMsg, e);
+            throw new LabelException(errorMsg, e, ExceptionCodes.LABEL_EXCEPTION);
         }
-        return labelList;
+        return filteredLabels;
+    }
+
+
+    /**
+     * Check if api exists
+     *
+     * @param apiId UUID of the api
+     * @throws APIMgtResourceNotFoundException if API does not exist
+     * @throws APIMgtDAOException if error occurred while accessing data layer
+     */
+    public void checkIfApiExists(String apiId) throws APIMgtResourceNotFoundException, APIMgtDAOException {
+        ApiDAO apiDAO = getApiDAO();
+        try {
+            API api = apiDAO.getAPI(apiId);
+            if (api == null) {
+                String errorMsg = "api not found for the id : " + apiId;
+                log.error(errorMsg);
+                throw new APIMgtResourceNotFoundException(errorMsg, ExceptionCodes.API_NOT_FOUND);
+            }
+        } catch (APIMgtDAOException e) {
+            String errorMsg =
+                    "Error occurred while checking if api exists for api_id " + apiId;
+            log.error(errorMsg, e);
+            throw new APIMgtDAOException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
     }
 
     @Override
-    public Comment getCommentByUUID(String commentId, String apiId) throws APIManagementException {
+    public String addComment(Comment comment, String apiId) throws APICommentException,
+            APIMgtResourceNotFoundException {
+        validateCommentMaxCharacterLength(comment.getCommentText());
+        String generatedUuid = UUID.randomUUID().toString();
+        comment.setUuid(generatedUuid);
+        try {
+            checkIfApiExists(apiId);
+            getApiDAO().addComment(comment, apiId);
+        } catch (APIMgtDAOException e) {
+            String errorMsg = "Error occurred while adding comment for api - " + apiId;
+            log.error(errorMsg, e);
+            throw new APICommentException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+        return comment.getUuid();
+    }
+
+    @Override
+    public void deleteComment(String commentId, String apiId, String username) throws APICommentException,
+            APIMgtResourceNotFoundException {
+        try {
+            ApiDAO apiDAO = getApiDAO();
+            checkIfApiExists(apiId);
+            Comment comment = apiDAO.getCommentByUUID(commentId, apiId);
+            if (comment != null) {
+                // if the delete operation is done by a user who isn't the owner of the comment
+                if (!comment.getCommentedUser().equals(username)) {
+                    checkIfUserIsCommentModerator(username);
+                }
+                apiDAO.deleteComment(commentId, apiId);
+            } else {
+                String errorMsg = "Couldn't find comment with comment_id : " + commentId;
+                log.error(errorMsg);
+                throw new APIMgtResourceNotFoundException(errorMsg, ExceptionCodes.COMMENT_NOT_FOUND);
+            }
+        } catch (APIMgtDAOException e) {
+            String errorMsg = "Error occurred while deleting comment " + commentId;
+            log.error(errorMsg, e);
+            throw new APICommentException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+    }
+
+    @Override
+    public void updateComment(Comment comment, String commentId, String apiId, String username) throws
+            APICommentException, APIMgtResourceNotFoundException {
+        validateCommentMaxCharacterLength(comment.getCommentText());
+        try {
+            checkIfApiExists(apiId);
+            Comment oldComment = getApiDAO().getCommentByUUID(commentId, apiId);
+            if (oldComment != null) {
+                // if the update operation is done by a user who isn't the owner of the comment
+                if (!oldComment.getCommentedUser().equals(username)) {
+                    checkIfUserIsCommentModerator(username);
+                }
+                getApiDAO().updateComment(comment, commentId, apiId);
+            } else {
+                String errorMsg = "Couldn't find comment with comment_id : " + commentId + "and api_id : " + apiId;
+                log.error(errorMsg);
+                throw new APIMgtResourceNotFoundException(errorMsg, ExceptionCodes.COMMENT_NOT_FOUND);
+            }
+        } catch (APIMgtDAOException e) {
+            String errorMsg = "Error occurred while updating comment " + commentId;
+            log.error(errorMsg, e);
+            throw new APICommentException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+
+    }
+
+    /**
+     * Check whether current user is a comment moderator
+     *
+     * @param username username of the user
+     * @throws APICommentException if user does not have comment moderator role
+     */
+    private void checkIfUserIsCommentModerator(String username) throws APICommentException {
+        Set<String> roles = APIUtils.getAllRolesOfUser(username);
+        if (roles.contains(getConfig().getCommentModeratorRole())) {
+            return;
+        }
+        String errorMsg = "comment moderator permission needed";
+        log.error(errorMsg);
+        throw new APICommentException(errorMsg, ExceptionCodes.NEED_COMMENT_MODERATOR_PERMISSION);
+    }
+
+    /**
+     * Validate whether the rating value provided by user is positive and less than or equal to the max rating in config
+     *
+     * @param ratingValue rating value provided by user
+     * @throws APIRatingException if rating value is negative or larger than max rating
+     */
+    private void validateMaxMinRatingValue(int ratingValue) throws APIRatingException {
+        if (ratingValue > 0 && ratingValue <= getConfig().getRatingMaxValue()) {
+            return;
+        }
+        String errorMsg = "Provided rating value is invalid";
+        log.error(errorMsg);
+        throw new APIRatingException(errorMsg, ExceptionCodes.RATING_VALUE_INVALID);
+    }
+
+    /**
+     * Validates the comment length is less than or equal to max comment length in config
+     *
+     * @param commentText comment text
+     * @throws APICommentException if comment length is larger than max length allowed
+     */
+    private void validateCommentMaxCharacterLength(String commentText) throws APICommentException {
+        if (commentText.length() <= getConfig().getCommentMaxLength()) {
+            return;
+        }
+        String errorMsg = "comment text exceeds allowed maximum length of characters";
+        log.error(errorMsg);
+        throw new APICommentException(errorMsg, ExceptionCodes.COMMENT_LENGTH_EXCEEDED);
+    }
+
+
+
+    @Override
+    public List<Comment> getCommentsForApi(String apiId) throws APICommentException, APIMgtResourceNotFoundException {
+        try {
+            checkIfApiExists(apiId);
+            List<Comment> commentList = getApiDAO().getCommentsForApi(apiId);
+            return commentList;
+        } catch (APIMgtDAOException e) {
+            String errorMsg = "Error occurred while retrieving comments for api " + apiId;
+            log.error(errorMsg, e);
+            throw new APICommentException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+    }
+
+    @Override
+    public Comment getCommentByUUID(String commentId, String apiId) throws APICommentException,
+            APIMgtResourceNotFoundException {
         Comment comment;
         try {
-            comment = getCommentDAO().getCommentByUUID(commentId, apiId);
+            checkIfApiExists(apiId);
+            comment = getApiDAO().getCommentByUUID(commentId, apiId);
+            if (comment == null) {
+                String errorMsg = "Couldn't find comment with comment_id - " + commentId + " for api_id " + apiId;
+                log.error(errorMsg);
+                throw new APIMgtResourceNotFoundException(errorMsg, ExceptionCodes.COMMENT_NOT_FOUND);
+            }
         } catch (APIMgtDAOException e) {
-            String errorMsg = "Error occurred while retrieving Comment + " + commentId + " for API " + apiId;
+            String errorMsg =
+                    "Error occurred while retrieving comment for comment_id " + commentId + " for api_id " + apiId;
+            log.error(errorMsg, e);
+            throw new APICommentException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+        return comment;
+    }
+
+
+    @Override
+    public String addRating(String apiId, Rating rating) throws APIRatingException, APIMgtResourceNotFoundException {
+        try {
+            validateMaxMinRatingValue(rating.getRating());
+            checkIfApiExists(apiId);
+            String generatedUuid = UUID.randomUUID().toString();
+            rating.setUuid(generatedUuid);
+            getApiDAO().addRating(apiId, rating);
+            return rating.getUuid();
+        } catch (APIMgtDAOException e) {
+            String errorMsg = "Error occurred while adding rating for user " + getUsername() + " for api " + apiId;
+            log.error(errorMsg, e);
+            throw new APIRatingException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+    }
+
+    @Override
+    public void updateRating(String apiId, String ratingId, Rating ratingFromPayload) throws APIRatingException,
+            APIMgtResourceNotFoundException {
+        try {
+            validateMaxMinRatingValue(ratingFromPayload.getRating());
+            checkIfApiExists(apiId);
+            getApiDAO().updateRating(apiId, ratingId, ratingFromPayload);
+        } catch (APIMgtDAOException e) {
+            String errorMsg = "Error occurred while updating rating for user " + getUsername() + " for api " + apiId;
+            log.error(errorMsg, e);
+            throw new APIRatingException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+    }
+
+    @Override
+    public Rating getRatingForApiFromUser(String apiId, String userId) throws APIRatingException,
+            APIMgtResourceNotFoundException {
+        try {
+            checkIfApiExists(apiId);
+            Rating userRatingForApi = getApiDAO().getUserRatingForApiFromUser(apiId, userId);
+            return userRatingForApi;
+        } catch (APIMgtDAOException e) {
+            String errorMsg = "Error occurred while retrieving ratings for user " + userId + " for api " + apiId;
+            log.error(errorMsg, e);
+            throw new APIRatingException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+    }
+
+    @Override
+    public Rating getRatingByUUID(String apiId, String ratingId) throws APIRatingException,
+            APIMgtResourceNotFoundException {
+        Rating rating;
+        try {
+            checkIfApiExists(apiId);
+            rating = getApiDAO().getRatingByUUID(apiId, ratingId);
+            if (rating == null) {
+                String errorMsg = "Couldn't find rating with rating id - " + ratingId + " for api_id " + apiId;
+                log.error(errorMsg);
+                throw new APIMgtResourceNotFoundException(errorMsg, ExceptionCodes.RATING_NOT_FOUND);
+            }
+        } catch (APIMgtDAOException e) {
+            String errorMsg =
+                    "Error occurred while retrieving rating for rating id " + ratingId + " for api_id " + apiId;
+            log.error(errorMsg, e);
+            throw new APIRatingException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+        return rating;
+    }
+
+    @Override
+    public double getAvgRating(String apiId) throws APIRatingException, APIMgtResourceNotFoundException {
+        try {
+            checkIfApiExists(apiId);
+            return getApiDAO().getAverageRating(apiId);
+        } catch (APIMgtDAOException e) {
+            String errorMsg =
+                    "Error occurred while retrieving average rating for api_id " + apiId;
+            log.error(errorMsg, e);
+            throw new APIRatingException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+    }
+
+    @Override
+    public List<Rating> getRatingsListForApi(String apiId) throws APIRatingException, APIMgtResourceNotFoundException {
+        try {
+            checkIfApiExists(apiId);
+            List<Rating> ratingsListForApi = getApiDAO().getRatingsListForApi(apiId);
+            return ratingsListForApi;
+        } catch (APIMgtDAOException e) {
+            String errorMsg =
+                    "Error occurred while retrieving ratings list for api_id " + apiId;
+            log.error(errorMsg, e);
+            throw new APIRatingException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String addCompositeApi(API.APIBuilder apiBuilder) throws APIManagementException {
+        apiBuilder.provider(getUsername());
+        if (StringUtils.isEmpty(apiBuilder.getId())) {
+            apiBuilder.id(UUID.randomUUID().toString());
+        }
+
+        LocalDateTime localDateTime = LocalDateTime.now();
+        apiBuilder.createdTime(localDateTime);
+        apiBuilder.lastUpdatedTime(localDateTime);
+        apiBuilder.createdBy(getUsername());
+        apiBuilder.updatedBy(getUsername());
+        apiBuilder.apiType(ApiType.COMPOSITE);
+
+        if (!isApiNameExist(apiBuilder.getName()) && !isContextExist(apiBuilder.getContext())) {
+            setUriTemplates(apiBuilder);
+            setGatewayDefinitionSource(apiBuilder);
+            setSwaggerDefinition(apiBuilder);
+            try {
+                setPermission(apiBuilder);
+
+                API createdAPI = apiBuilder.build();
+                APIUtils.validate(createdAPI);
+
+                //publishing config to gateway
+                gateway.addAPI(createdAPI);
+
+                getApiDAO().addAPI(createdAPI);
+
+                if (log.isDebugEnabled()) {
+                    log.debug("API " + createdAPI.getName() + "-" + createdAPI.getVersion() + " was created " +
+                            "successfully.", log);
+                }
+
+            } catch (ParseException e) {
+                String errorMsg = "Unable to update the documentation due to json parse error";
+                log.error(errorMsg, e);
+                throw new APIManagementException(errorMsg, e, ExceptionCodes.JSON_PARSE_ERROR);
+            } catch (APIMgtDAOException e) {
+                String errorMsg = "Error occurred while creating the API - " + apiBuilder.getName();
+                log.error(errorMsg);
+                throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+            } catch (GatewayException e) {
+                String message = "Error publishing service configuration to Gateway " + apiBuilder.getName();
+                log.error(message, e);
+                throw new APIManagementException(message, e, ExceptionCodes.GATEWAY_EXCEPTION);
+            }
+
+        } else {
+            String message = "Duplicate API already Exist with name/Context " + apiBuilder.getName();
+            log.error(message);
+            throw new APIManagementException(message, ExceptionCodes.API_ALREADY_EXISTS);
+        }
+
+        return apiBuilder.getId();
+    }
+
+    private void setUriTemplates(API.APIBuilder apiBuilder) {
+        Map<String, UriTemplate> uriTemplateMap = new HashMap();
+        if (apiBuilder.getUriTemplates().isEmpty()) {
+            apiDefinitionFromSwagger20.setDefaultSwaggerDefinition(apiBuilder);
+        } else {
+            for (UriTemplate uriTemplate : apiBuilder.getUriTemplates().values()) {
+                UriTemplate.UriTemplateBuilder uriTemplateBuilder = new UriTemplate.UriTemplateBuilder
+                        (uriTemplate);
+                if (StringUtils.isEmpty(uriTemplateBuilder.getTemplateId())) {
+                    uriTemplateBuilder.templateId(APIUtils.generateOperationIdFromPath(uriTemplate
+                            .getUriTemplate(), uriTemplate.getHttpVerb()));
+                }
+                if (uriTemplate.getEndpoint().isEmpty()) {
+                    uriTemplateBuilder.endpoint(apiBuilder.getEndpoint());
+                }
+                uriTemplateMap.put(uriTemplateBuilder.getTemplateId(), uriTemplateBuilder.build());
+            }
+            apiBuilder.uriTemplates(uriTemplateMap);
+        }
+
+    }
+
+    private void setGatewayDefinitionSource(API.APIBuilder apiBuilder) throws APITemplateException {
+        List<UriTemplate> list = new ArrayList<>(apiBuilder.getUriTemplates().values());
+        List<TemplateBuilderDTO> resourceList = new ArrayList<>();
+
+        for (UriTemplate uriTemplate : list) {
+            TemplateBuilderDTO dto = new TemplateBuilderDTO();
+            dto.setTemplateId(uriTemplate.getTemplateId());
+            dto.setUriTemplate(uriTemplate.getUriTemplate());
+            dto.setHttpVerb(uriTemplate.getHttpVerb());
+            dto.setAuthType(uriTemplate.getAuthType());
+            dto.setPolicy(uriTemplate.getPolicy());
+            resourceList.add(dto);
+        }
+        GatewaySourceGenerator gatewaySourceGenerator = getGatewaySourceGenerator();
+        gatewaySourceGenerator.setAPI(apiBuilder.build());
+        String gatewayConfig = gatewaySourceGenerator.getConfigStringFromTemplate(resourceList);
+        if (log.isDebugEnabled()) {
+            log.debug("API " + apiBuilder.getName() + "gateway config: " + gatewayConfig);
+        }
+        apiBuilder.gatewayConfig(gatewayConfig);
+    }
+
+    private void setSwaggerDefinition(API.APIBuilder apiBuilder) {
+        if (StringUtils.isEmpty(apiBuilder.getApiDefinition())) {
+            apiBuilder.apiDefinition(apiDefinitionFromSwagger20.generateSwaggerFromResources(apiBuilder));
+        }
+    }
+
+    private void setPermission(API.APIBuilder apiBuilder) throws ParseException {
+        if (apiBuilder.getPermission() != null && !("").equals(apiBuilder.getPermission())) {
+            HashMap roleNamePermissionList;
+            roleNamePermissionList = APIUtils.getAPIPermissionArray(apiBuilder.getPermission());
+            apiBuilder.permissionMap(roleNamePermissionList);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void updateCompositeApi(API.APIBuilder apiBuilder) throws APIManagementException {
+        apiBuilder.provider(getUsername());
+        apiBuilder.updatedBy(getUsername());
+
+        API originalAPI = getAPIbyUUID(apiBuilder.getId());
+        if (originalAPI != null) {
+            apiBuilder.createdTime(originalAPI.getCreatedTime());
+            //workflow status is an internal property and shouldn't be allowed to update externally
+            apiBuilder.workflowStatus(originalAPI.getWorkflowStatus());
+
+            APIUtils.verifyValidityOfApiUpdate(apiBuilder, originalAPI);
+
+            try {
+                setPermission(apiBuilder);
+
+                String updatedSwagger = apiDefinitionFromSwagger20.generateSwaggerFromResources(apiBuilder);
+                String gatewayConfig = getApiGatewayConfig(apiBuilder.getId());
+                GatewaySourceGenerator gatewaySourceGenerator = getGatewaySourceGenerator();
+                gatewaySourceGenerator.setAPI(apiBuilder.build());
+                String updatedGatewayConfig = gatewaySourceGenerator
+                        .getGatewayConfigFromSwagger(gatewayConfig, updatedSwagger);
+
+                API api = apiBuilder.build();
+
+                if (originalAPI.getContext() != null && !originalAPI.getContext().equals(apiBuilder.getContext())) {
+                    if (isContextExist(api.getContext())) {
+                        throw new APIManagementException("Context already Exist", ExceptionCodes
+                                .API_ALREADY_EXISTS);
+                    }
+                }
+
+                //publishing config to gateway
+                gateway.addAPI(api);
+
+                getApiDAO().updateSwaggerDefinition(api.getId(), updatedSwagger, api.getUpdatedBy());
+                getApiDAO().updateGatewayConfig(api.getId(), updatedGatewayConfig, api.getUpdatedBy());
+
+                if (log.isDebugEnabled()) {
+                    log.debug("API " + api.getName() + "-" + api.getVersion() + " was updated successfully.");
+                }
+
+            } catch (ParseException e) {
+                String errorMsg = "Unable to update the documentation due to json parse error";
+                log.error(errorMsg, e);
+                throw new APIManagementException(errorMsg, e, ExceptionCodes.JSON_PARSE_ERROR);
+            } catch (APIMgtDAOException e) {
+                String errorMsg = "Error occurred while updating the API - " + apiBuilder.getName();
+                log.error(errorMsg, e);
+                throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+            }
+        } else {
+
+            log.error("Couldn't found API with ID " + apiBuilder.getId());
+            throw new APIManagementException("Couldn't found API with ID " + apiBuilder.getId(),
+                    ExceptionCodes.API_NOT_FOUND);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void deleteCompositeApi(String apiId) throws APIManagementException {
+        try {
+            API api = getApiDAO().getAPI(apiId);
+            if (api != null && api.getApiType() == ApiType.COMPOSITE) {
+                //Delete API in gateway
+                gateway.deleteAPI(api);
+                getApiDAO().deleteAPI(apiId);
+            }
+        } catch (GatewayException e) {
+            String message = "Error occurred while deleting Composite API with id - " + apiId + " from gateway";
+            throw new APIManagementException(message, e, ExceptionCodes.GATEWAY_EXCEPTION);
+        } catch (APIMgtDAOException e) {
+            String errorMsg = "Error occurred while deleting the Composite API with id " + apiId;
+            throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String createNewCompositeApiVersion(String apiId, String newVersion) throws APIManagementException {
+        // validate parameters
+        if (StringUtils.isEmpty(newVersion)) {
+            String errorMsg = "New API version cannot be empty";
+            log.error(errorMsg);
+            throw new APIManagementException(errorMsg, ExceptionCodes.PARAMETER_NOT_PROVIDED);
+        }
+        if (StringUtils.isEmpty(apiId)) {
+            String errorMsg = "API ID cannot be empty";
+            log.error(errorMsg);
+            throw new APIManagementException(errorMsg, ExceptionCodes.PARAMETER_NOT_PROVIDED);
+        }
+
+        String newVersionedId;
+
+        try {
+            API api = getApiDAO().getAPI(apiId);
+            if (api != null) {
+                if (api.getVersion().equals(newVersion)) {
+                    String errMsg = "New API version " + newVersion + " cannot be same as the previous version for " +
+                            "API " + api.getName();
+                    log.error(errMsg);
+                    throw new APIManagementException(errMsg, ExceptionCodes.API_ALREADY_EXISTS);
+                }
+                API.APIBuilder apiBuilder = new API.APIBuilder(api);
+                apiBuilder.id(UUID.randomUUID().toString());
+                apiBuilder.version(newVersion);
+                apiBuilder.context(api.getContext().replace(api.getVersion(), newVersion));
+                apiBuilder.copiedFromApiId(api.getId());
+                if (StringUtils.isEmpty(apiBuilder.getApiDefinition())) {
+                    apiBuilder.apiDefinition(apiDefinitionFromSwagger20.generateSwaggerFromResources(apiBuilder));
+                }
+                getApiDAO().addAPI(apiBuilder.build());
+                newVersionedId = apiBuilder.getId();
+            } else {
+                throw new APIMgtResourceNotFoundException("Requested API on UUID " + apiId + "Couldn't be found");
+            }
+        } catch (APIMgtDAOException e) {
+            String errorMsg = "Couldn't create new API version from " + apiId;
             log.error(errorMsg, e);
             throw new APIManagementException(errorMsg, e, ExceptionCodes.APIMGT_DAO_EXCEPTION);
         }
-            return comment;
+
+        return newVersionedId;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public double getUserRating(String apiId, String username) throws APIManagementException {
-        return 0;
+    public String addCompositeApiFromDefinition(InputStream apiDefinition) throws APIManagementException {
+        try {
+            String apiDefinitionString = IOUtils.toString(apiDefinition);
+            API.APIBuilder apiBuilder = apiDefinitionFromSwagger20.generateApiFromSwaggerResource(getUsername(),
+                    apiDefinitionString);
+            apiBuilder.corsConfiguration(new CorsConfiguration());
+            apiBuilder.apiDefinition(apiDefinitionString);
+            addCompositeApi(apiBuilder);
+            return apiBuilder.getId();
+        } catch (IOException e) {
+            throw new APIManagementException("Couldn't Generate ApiDefinition from file", ExceptionCodes
+                    .API_DEFINITION_MALFORMED);
+        }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public double getAvgRating(String apiId) throws APIManagementException {
-        return 0;
+    public String addCompositeApiFromDefinition(String swaggerResourceUrl) throws APIManagementException {
+        try {
+            URL url = new URL(swaggerResourceUrl);
+            HttpURLConnection urlConn = (HttpURLConnection) url.openConnection();
+            urlConn.setDoOutput(true);
+            urlConn.setRequestMethod(APIMgtConstants.HTTP_GET);
+            int responseCode = urlConn.getResponseCode();
+            if (responseCode == 200) {
+                String responseStr = new String(IOUtils.toByteArray(urlConn.getInputStream()), StandardCharsets.UTF_8);
+                API.APIBuilder apiBuilder = apiDefinitionFromSwagger20.generateApiFromSwaggerResource(getUsername(),
+                        responseStr);
+                apiBuilder.corsConfiguration(new CorsConfiguration());
+                apiBuilder.apiDefinition(responseStr);
+                addCompositeApi(apiBuilder);
+                return apiBuilder.getId();
+            } else {
+                throw new APIManagementException("Error while getting swagger resource from url : " + url,
+                        ExceptionCodes.API_DEFINITION_MALFORMED);
+            }
+        } catch (UnsupportedEncodingException e) {
+            String msg = "Unsupported encoding exception while getting the swagger resource from url";
+            log.error(msg, e);
+            throw new APIManagementException(msg, ExceptionCodes.API_DEFINITION_MALFORMED);
+        } catch (ProtocolException e) {
+            String msg = "Protocol exception while getting the swagger resource from url";
+            log.error(msg, e);
+            throw new APIManagementException(msg, ExceptionCodes.API_DEFINITION_MALFORMED);
+        } catch (MalformedURLException e) {
+            String msg = "Malformed url while getting the swagger resource from url";
+            log.error(msg, e);
+            throw new APIManagementException(msg, ExceptionCodes.API_DEFINITION_MALFORMED);
+        } catch (IOException e) {
+            String msg = "Error while getting the swagger resource from url";
+            log.error(msg, e);
+            throw new APIManagementException(msg, ExceptionCodes.API_DEFINITION_MALFORMED);
+        }
     }
 
-    @Override
-    public List<Rating> getUserRatingDTOList(String apiId) throws APIManagementException {
-        return null;
-    }
-
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public List<API> searchAPIs(String query, int offset, int limit) throws APIManagementException {
 
@@ -478,33 +1120,35 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
         try {
 
             // TODO: Need to validate users roles against results returned
+            //this should be current logged in user
+            String user = "admin";
+            //role list of current user
+            Set<String> roles = APIUtils.getAllRolesOfUser(user);
             if (query != null && !query.isEmpty()) {
                 String[] attributes = query.split(",");
                 Map<String, String> attributeMap = new HashMap<>();
-                List<String> roles = new ArrayList<>();
-                String user = "admin";
                 // TODO get the logged in user and user roles from key manager.
                 boolean isFullTextSearch = false;
-                for (String attribute : attributes) {
-                    if (attribute.split(":").length > 1) {
-                        attributeMap.put(attribute.split(":")[0], attribute.split(":")[1]);
-                    } else if (attribute.contains(":") && attribute.split(":").length > 0) {
-                        attributeMap.put(attribute.split(":")[0], "");
-                    } else {
-                        isFullTextSearch = true;
-                    }
-
-                }
-                if (isFullTextSearch) {
-                    apiResults = getApiDAO().searchAPIs(roles, user, query, offset, limit);
+                String searchAttribute, searchValue;
+                if (!query.contains(":")) {
+                    isFullTextSearch = true;
                 } else {
-                    apiResults = getApiDAO().attributeSearchAPIs(roles, user, attributeMap, offset, limit);
+                    searchAttribute = attributes[0].split(":")[0];
+                    searchValue = attributes[0].split(":")[1];
+                    attributeMap.put(searchAttribute, searchValue);
+                }
+
+                if (isFullTextSearch) {
+                    apiResults = getApiDAO().searchAPIs(roles, user, query, ApiType.STANDARD, offset, limit);
+                } else {
+                    apiResults = getApiDAO().searchAPIsByAttributeInStore(new ArrayList<>(roles),
+                            attributeMap, offset, limit);
                 }
             } else {
                 List<String> statuses = new ArrayList<>();
                 statuses.add(APIStatus.PUBLISHED.getStatus());
                 statuses.add(APIStatus.PROTOTYPED.getStatus());
-                apiResults = getApiDAO().getAPIsByStatus(statuses);
+                apiResults = getApiDAO().getAPIsByStatus(roles, statuses, ApiType.STANDARD);
             }
 
         } catch (APIMgtDAOException e) {
@@ -516,8 +1160,11 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
         return apiResults;
     }
 
+    /**
+     * @see APIStore#deleteApplication(String)
+     */
     @Override
-    public void deleteApplication(String appId) throws APIManagementException {
+    public WorkflowResponse deleteApplication(String appId) throws APIManagementException {
         try {
             if (appId == null) {
                 String message = "Application Id is not provided";
@@ -529,62 +1176,31 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
                 String message = "Application cannot be found for id :" + appId;
                 throw new APIManagementException(message, ExceptionCodes.APPLICATION_NOT_FOUND);
             }           
-            
-            WorkflowExecutor createApplicationWFExecutor = WorkflowExecutorFactory.getInstance().
-                    getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_APPLICATION_CREATION);
-            WorkflowExecutor createSubscriptionWFExecutor = WorkflowExecutorFactory.getInstance().
-                    getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_CREATION);  
+            //delete application creation pending tasks
+            cleanupPendingTaskForApplicationDeletion(application);
             WorkflowExecutor removeApplicationWFExecutor = WorkflowExecutorFactory.getInstance().
                     getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_APPLICATION_DELETION);
-            
-            // get subscriptions with pending status
-            List<Subscription> pendingSubscriptions = getApiSubscriptionDAO()
-                    .getPendingAPISubscriptionsByApplication(appId);
-            String pendingExtReference;
-            if (pendingSubscriptions == null || pendingSubscriptions.isEmpty()) {
-                pendingExtReference = getWorkflowDAO().getExternalWorkflowReferenceForApplication(appId);
-                try {
-                    createApplicationWFExecutor.cleanUpPendingTask(pendingExtReference);
-                } catch (WorkflowException e) {
-                    String warn = "Failed to clean pending application approval task for " + appId;
-                    // failed cleanup processes are ignored to prevent failing the deletion process
-                    log.warn(warn, e.getLocalizedMessage());
-                }
-            } else {
 
-                // this means there are pending subsriptions. It also implies that there cannot be pending application
-                // approvals (cannot subscribe to a pending application)
-                for (Iterator iterator = pendingSubscriptions.iterator(); iterator.hasNext();) {
-                    Subscription pendingSubscription = (Subscription) iterator.next();
-                    pendingExtReference = getWorkflowDAO()
-                            .getExternalWorkflowReferenceForSubscription(pendingSubscription.getId());
-                    createSubscriptionWFExecutor.cleanUpPendingTask(pendingExtReference);
-
-                    try {
-                        createSubscriptionWFExecutor.cleanUpPendingTask(pendingExtReference);
-                    } catch (WorkflowException e) {
-                        String warn = "Failed to clean pending subscription approval task for "
-                                + pendingSubscription.getId();
-                        // failed cleanup processes are ignored to prevent failing the deletion process
-                        log.warn(warn, e.getLocalizedMessage());
-                    }
-                }
-            }
-            
-            ApplicationCreationWorkflow workflow = new ApplicationCreationWorkflow();
+            ApplicationDeletionWorkflow workflow = new ApplicationDeletionWorkflow(getApplicationDAO(),
+                    getWorkflowDAO());
             workflow.setApplication(application);
             workflow.setWorkflowType(APIMgtConstants.WorkflowConstants.WF_TYPE_AM_APPLICATION_DELETION);
             workflow.setWorkflowReference(application.getId());
             workflow.setExternalWorkflowReference(UUID.randomUUID().toString());
             workflow.setCreatedTime(LocalDateTime.now());
+            String workflowDescription = "Application deletion workflow for " + application.getName() + " by "
+                    + getUsername();
+            workflow.setWorkflowDescription(workflowDescription);
             WorkflowResponse response = removeApplicationWFExecutor.execute(workflow);
             workflow.setStatus(response.getWorkflowStatus());
-            addWorkflowEntries(workflow);
 
-            if (WorkflowStatus.APPROVED == response.getWorkflowStatus()) {
+            if (WorkflowStatus.CREATED != response.getWorkflowStatus()) {
                 completeWorkflow(removeApplicationWFExecutor, workflow);
-            }          
-         
+            } else {
+                //add entry to workflow table if it is only in pending state
+                addWorkflowEntries(workflow);
+            }
+            return response;
         } catch (APIMgtDAOException e) {
             String errorMsg = "Error occurred while deleting the application - " + appId;
             log.error(errorMsg, e);
@@ -592,10 +1208,57 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
         }
     }
 
+    private void cleanupPendingTaskForApplicationDeletion(Application application) throws APIManagementException {
+        WorkflowExecutor createApplicationWFExecutor = WorkflowExecutorFactory.getInstance()
+                .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_APPLICATION_CREATION);
+        WorkflowExecutor createSubscriptionWFExecutor = WorkflowExecutorFactory.getInstance()
+                .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_CREATION);
+        WorkflowExecutor updateApplicationWFExecutor = WorkflowExecutorFactory.getInstance()
+                .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_APPLICATION_UPDATE);
+
+        String appId = application.getId();
+        // get subscriptions with pending status
+        List<Subscription> pendingSubscriptions = getApiSubscriptionDAO()
+                .getPendingAPISubscriptionsByApplication(appId);
+  
+        String applicationStatus = application.getStatus();
+
+        if (pendingSubscriptions == null || pendingSubscriptions.isEmpty()) {
+            // check whether application is on hold state
+            if (ApplicationStatus.APPLICATION_ONHOLD.equals(applicationStatus)) {
+                //delete pending tasks for application creation if any
+                cleanupPendingTask(createApplicationWFExecutor, appId,
+                        WorkflowConstants.WF_TYPE_AM_APPLICATION_CREATION);
+            }
+        } else {
+
+            // this means there are pending subscriptions. It also implies that there cannot be pending application
+            // approvals (cannot subscribe to a pending application)
+            for (Iterator iterator = pendingSubscriptions.iterator(); iterator.hasNext();) {
+                Subscription pendingSubscription = (Subscription) iterator.next();
+
+                // delete pending tasks for subscripton creation if any
+                cleanupPendingTask(createSubscriptionWFExecutor, pendingSubscription.getId(),
+                        WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_CREATION);
+            }
+        }
+        //delete pending tasks for application update if any
+        cleanupPendingTask(updateApplicationWFExecutor, appId, WorkflowConstants.WF_TYPE_AM_APPLICATION_UPDATE);        
+    }
+    
+    private void cleanupPendingTaskForSubscriptionDeletion(Subscription subscription) throws APIManagementException {
+        WorkflowExecutor createSubscriptionWFExecutor = WorkflowExecutorFactory.getInstance()
+                .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_CREATION);
+        if (APIMgtConstants.SubscriptionStatus.ON_HOLD == subscription.getStatus()) {
+            cleanupPendingTask(createSubscriptionWFExecutor, subscription.getId(),
+                    WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_CREATION);
+        }
+    }
+
     @Override
     public ApplicationCreationResponse addApplication(Application application) throws APIManagementException {
         ApplicationCreationResponse applicationResponse = null;
-        String applicationUuid = null;
+
         try {
             if (getApplicationDAO().isApplicationNameExists(application.getName())) {
                 String message = "An application already exists with a duplicate name - " + application.getName();
@@ -634,21 +1297,27 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
             WorkflowExecutor appCreationWFExecutor = WorkflowExecutorFactory.getInstance()
                     .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_APPLICATION_CREATION);
 
-            ApplicationCreationWorkflow workflow = new ApplicationCreationWorkflow();
+            ApplicationCreationWorkflow workflow = new ApplicationCreationWorkflow(getApplicationDAO(),
+                    getWorkflowDAO());
 
             workflow.setApplication(application);
+            workflow.setCreatedBy(getUsername());
             workflow.setWorkflowReference(application.getId());
             workflow.setExternalWorkflowReference(UUID.randomUUID().toString());
             workflow.setCreatedTime(LocalDateTime.now());
+            
+            String workflowDescription = "Application creation workflow for " + application.getName() + " with tier "
+                    + tierName + " by " + getUsername();
+            workflow.setWorkflowDescription(workflowDescription);
             WorkflowResponse response = appCreationWFExecutor.execute(workflow);
             workflow.setStatus(response.getWorkflowStatus());
-            addWorkflowEntries(workflow);
 
-            if (WorkflowStatus.APPROVED == response.getWorkflowStatus()) {
+            if (WorkflowStatus.CREATED != response.getWorkflowStatus()) {
                 completeWorkflow(appCreationWFExecutor, workflow);
             } else {
                 getApplicationDAO().updateApplicationState(generatedUuid,
                         APIMgtConstants.ApplicationStatus.APPLICATION_ONHOLD);
+                addWorkflowEntries(workflow);
             }
 
             APIUtils.logDebug("successfully added application with appId " + application.getId(), log);
@@ -707,10 +1376,6 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
 
     }
 
-    private TagDAO getTagDAO() {
-        return tagDAO;
-    }
-
     /**
      * Add {@link org.wso2.carbon.apimgt.core.api.EventObserver} which needs to be registered to a Map.
      * Key should be class name of the observer. This is to prevent registering same observer twice to an
@@ -754,6 +1419,11 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
         }
     }
 
+    @Override
+    public void selfSignUp(User user) throws APIManagementException {
+        getIdentityProvider().registerUser(user);
+    }
+
     /**
      * To get the Map of all observers, which registered to {@link org.wso2.carbon.apimgt.core.api.APIPublisher}.
      *
@@ -763,94 +1433,5 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
         return eventObservers;
     }
 
-    @Override
-    public void completeWorkflow(WorkflowExecutor workflowExecutor, Workflow workflow) throws APIManagementException {
 
-        if (workflow.getWorkflowReference() == null) {
-            String message = "Error while changing the workflow. Missing reference";
-            log.error(message);
-            throw new APIManagementException(message, ExceptionCodes.WORKFLOW_EXCEPTION);
-        }
-
-        if (workflow instanceof ApplicationCreationWorkflow
-                && WorkflowConstants.WF_TYPE_AM_APPLICATION_CREATION.equals(workflow.getWorkflowType())) {
-            WorkflowResponse response = workflowExecutor.complete(workflow);
-
-            // setting the workflow status from the one getting from the executor. this gives the executor developer
-            // to change the state as well.
-            workflow.setStatus(response.getWorkflowStatus());
-            updateWorkflowEntries(workflow);
-            String applicationState = "";
-            if (WorkflowStatus.APPROVED == response.getWorkflowStatus()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Application Creation workflow complete: Approved");
-                }
-                applicationState = APIMgtConstants.ApplicationStatus.APPLICATION_APPROVED;
-
-            } else if (WorkflowStatus.REJECTED == response.getWorkflowStatus()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Application Creation workflow complete: Rejected");
-                }
-                applicationState = APIMgtConstants.ApplicationStatus.APPLICATION_REJECTED;
-            }
-            getApplicationDAO().updateApplicationState(workflow.getWorkflowReference(), applicationState);
-
-        } else if (workflow instanceof ApplicationCreationWorkflow
-                && WorkflowConstants.WF_TYPE_AM_APPLICATION_DELETION.equals(workflow.getWorkflowType())) {
-            WorkflowResponse response = workflowExecutor.complete(workflow);
-
-            if (WorkflowStatus.APPROVED == response.getWorkflowStatus()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Application Deletion workflow complete: Approved");
-                }
-                getApplicationDAO().deleteApplication(workflow.getWorkflowReference());
-
-            } else if (WorkflowStatus.REJECTED == response.getWorkflowStatus()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Subscription Creation workflow complete: Rejected");
-                }
-            }
-
-        } else if (workflow instanceof SubscriptionWorkflow
-                && WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_CREATION.equals(workflow.getWorkflowType())) {
-            WorkflowResponse response = workflowExecutor.complete(workflow);
-            SubscriptionStatus subscriptionState = null;
-            if (WorkflowStatus.APPROVED == response.getWorkflowStatus()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Subscription Creation workflow complete: Approved");
-                }
-
-                subscriptionState = APIMgtConstants.SubscriptionStatus.ACTIVE;
-
-            } else if (WorkflowStatus.REJECTED == response.getWorkflowStatus()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Subscription Creation workflow complete: Rejected");
-                }
-                subscriptionState = APIMgtConstants.SubscriptionStatus.REJECTED;
-            }
-
-            getApiSubscriptionDAO().updateSubscriptionStatus(workflow.getWorkflowReference(), subscriptionState);
-        } else if (workflow instanceof SubscriptionWorkflow
-                && WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_DELETION.equals(workflow.getWorkflowType())) {
-            WorkflowResponse response = workflowExecutor.complete(workflow);
-            if (WorkflowStatus.APPROVED == response.getWorkflowStatus()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Subscription deletion workflow complete: Approved");
-                }
-                getApiSubscriptionDAO().deleteAPISubscription(workflow.getWorkflowReference());               
-
-            } else if (WorkflowStatus.REJECTED == response.getWorkflowStatus()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Subscription deletion workflow complete: Rejected");
-                }
-            }
-
-        } else {
-            String message = "Invalid workflow type:  " + workflow.getWorkflowType();
-            log.error(message);
-            throw new APIManagementException(message, ExceptionCodes.WORKFLOW_EXCEPTION);
-        }
-    }
-
-    
 }

@@ -1,23 +1,44 @@
 package org.wso2.carbon.apimgt.rest.api.store.dto;
 
-import java.util.Objects;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * LabelDTO
  */
-@javax.annotation.Generated(value = "org.wso2.maven.plugins.JavaMSF4JServerCodegen", date = "2017-03-28T22:39:18.827+05:30")
 public class LabelDTO   {
+  @JsonProperty("labelId")
+  private String labelId = null;
+
   @JsonProperty("name")
   private String name = null;
 
   @JsonProperty("access_urls")
   private List<String> accessUrls = new ArrayList<String>();
+
+  public LabelDTO labelId(String labelId) {
+    this.labelId = labelId;
+    return this;
+  }
+
+   /**
+   * Get labelId
+   * @return labelId
+  **/
+  @ApiModelProperty(required = true, value = "")
+  public String getLabelId() {
+    return labelId;
+  }
+
+  public void setLabelId(String labelId) {
+    this.labelId = labelId;
+  }
 
   public LabelDTO name(String name) {
     this.name = name;
@@ -70,13 +91,14 @@ public class LabelDTO   {
       return false;
     }
     LabelDTO label = (LabelDTO) o;
-    return Objects.equals(this.name, label.name) &&
+    return Objects.equals(this.labelId, label.labelId) &&
+        Objects.equals(this.name, label.name) &&
         Objects.equals(this.accessUrls, label.accessUrls);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(name, accessUrls);
+    return Objects.hash(labelId, name, accessUrls);
   }
 
   @Override
@@ -84,6 +106,7 @@ public class LabelDTO   {
     StringBuilder sb = new StringBuilder();
     sb.append("class LabelDTO {\n");
     
+    sb.append("    labelId: ").append(toIndentedString(labelId)).append("\n");
     sb.append("    name: ").append(toIndentedString(name)).append("\n");
     sb.append("    accessUrls: ").append(toIndentedString(accessUrls)).append("\n");
     sb.append("}");

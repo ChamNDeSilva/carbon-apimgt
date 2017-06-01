@@ -1,5 +1,12 @@
 package org.wso2.carbon.apimgt.rest.api.publisher.impl;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import javax.ws.rs.core.HttpHeaders;
+import javax.ws.rs.core.Response;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,11 +24,12 @@ import org.wso2.carbon.apimgt.rest.api.publisher.dto.EndPointDTO;
 import org.wso2.carbon.apimgt.rest.api.publisher.dto.EndPointListDTO;
 import org.wso2.carbon.apimgt.rest.api.publisher.utils.MappingUtil;
 import org.wso2.carbon.apimgt.rest.api.publisher.utils.RestAPIPublisherUtil;
+import org.wso2.msf4j.Request;
 
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.Response;
 import java.util.HashMap;
 import java.util.List;
+import javax.ws.rs.core.HttpHeaders;
+import javax.ws.rs.core.Response;
 
 @javax.annotation.Generated(value = "class org.wso2.maven.plugins.JavaMSF4JServerCodegen", date =
         "2017-01-03T15:53:15.692+05:30")
@@ -30,22 +38,23 @@ public class EndpointsApiServiceImpl extends EndpointsApiService {
 
     /**
      * Delete an endpoint by providing its ID
-     * 
-     * @param endpointId ID of the endpoint
-     * @param contentType Content-Type header value
-     * @param ifMatch If-Match header value
+     *
+     * @param endpointId        ID of the endpoint
+     * @param contentType       Content-Type header value
+     * @param ifMatch           If-Match header value
      * @param ifUnmodifiedSince If-Unmodified-Since header value
-     * @param minorVersion minor version header
+     * @param request           msf4j request object
      * @return 200 OK response if the deletion was successful
      * @throws NotFoundException When the particular resource does not exist in the system
      */
     @Override
     public Response endpointsEndpointIdDelete(String endpointId, String contentType, String ifMatch,
-            String ifUnmodifiedSince, String minorVersion) throws NotFoundException {
+                                              String ifUnmodifiedSince, Request request) throws NotFoundException {
         String username = "";
         try {
             APIPublisher apiPublisher = RestAPIPublisherUtil.getApiPublisher(username);
-            String existingFingerprint = endpointsEndpointIdGetFingerprint(endpointId, null, null, null, minorVersion);
+            String existingFingerprint = endpointsEndpointIdGetFingerprint(endpointId, null, null,
+                    null, request);
             if (!StringUtils.isEmpty(ifMatch) && !StringUtils.isEmpty(existingFingerprint) && !ifMatch
                     .contains(existingFingerprint)) {
                 return Response.status(Response.Status.PRECONDITION_FAILED).build();
@@ -57,7 +66,7 @@ public class EndpointsApiServiceImpl extends EndpointsApiService {
             String errorMessage = "Error while deleting  Endpoint : " + endpointId;
             HashMap<String, String> paramList = new HashMap<String, String>();
             paramList.put(APIMgtConstants.ExceptionsConstants.ENDPOINT_ID, endpointId);
-            org.wso2.carbon.apimgt.rest.api.common.dto.ErrorDTO errorDTO = RestApiUtil.getErrorDTO(e.getErrorHandler
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(e.getErrorHandler
                     (), paramList);
             log.error(errorMessage, e);
             return Response.status(e.getErrorHandler().getHttpStatusCode()).entity(errorDTO).build();
@@ -66,18 +75,18 @@ public class EndpointsApiServiceImpl extends EndpointsApiService {
 
     /**
      * Retrieves an endpoint by providing its ID
-     * 
-     * @param endpointId ID of the endpoint
-     * @param contentType Content-Type header value
-     * @param ifNoneMatch If-None-Match header value
+     *
+     * @param endpointId      ID of the endpoint
+     * @param contentType     Content-Type header value
+     * @param ifNoneMatch     If-None-Match header value
      * @param ifModifiedSince If-Modified-Since header
-     * @param minorVersion minor version header
+     * @param request         msf4j request object
      * @return Endpoint DTO represented by the ID
      * @throws NotFoundException When the particular resource does not exist in the system
      */
     @Override
     public Response endpointsEndpointIdGet(String endpointId, String contentType, String ifNoneMatch,
-            String ifModifiedSince, String minorVersion) throws NotFoundException {
+                                           String ifModifiedSince, Request request) throws NotFoundException {
         String username = "";
         try {
             APIPublisher apiPublisher = RestAPIPublisherUtil.getApiPublisher(username);
@@ -90,7 +99,7 @@ public class EndpointsApiServiceImpl extends EndpointsApiService {
             }
 
             String existingFingerprint = endpointsEndpointIdGetFingerprint(endpointId, contentType, ifNoneMatch,
-                    ifModifiedSince, minorVersion);
+                    ifModifiedSince, request);
             if (!StringUtils.isEmpty(ifNoneMatch) && !StringUtils.isEmpty(existingFingerprint) && ifNoneMatch
                     .contains(existingFingerprint)) {
                 return Response.notModified().build();
@@ -102,25 +111,30 @@ public class EndpointsApiServiceImpl extends EndpointsApiService {
             String errorMessage = "Error while get  Endpoint : " + endpointId;
             HashMap<String, String> paramList = new HashMap<String, String>();
             paramList.put(APIMgtConstants.ExceptionsConstants.ENDPOINT_ID, endpointId);
-            org.wso2.carbon.apimgt.rest.api.common.dto.ErrorDTO errorDTO = RestApiUtil.getErrorDTO(e.getErrorHandler
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(e.getErrorHandler
                     (), paramList);
             log.error(errorMessage, e);
             return Response.status(e.getErrorHandler().getHttpStatusCode()).entity(errorDTO).build();
+        } catch (IOException e) {
+            String errorMessage = "Error while Converting Endpoint Security Details in Endpoint :" + endpointId;
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(errorMessage, 900313L, errorMessage);
+            log.error(errorMessage, e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(errorDTO).build();
         }
     }
 
     /**
      * Retrieves the fingerprint of the endpoint identified by the UUID
-     * 
-     * @param endpointId ID of the endpoint
-     * @param contentType Content-Type header value
-     * @param ifMatch If-Match header value
+     *
+     * @param endpointId        ID of the endpoint
+     * @param contentType       Content-Type header value
+     * @param ifMatch           If-Match header value
      * @param ifUnmodifiedSince If-Unmodified-Since header value
-     * @param minorVersion minor version header
+     * @param request           msf4j request object
      * @return fingerprint of the endpoint
      */
     public String endpointsEndpointIdGetFingerprint(String endpointId, String contentType, String ifMatch,
-            String ifUnmodifiedSince, String minorVersion) {
+                                                    String ifUnmodifiedSince, Request request) {
         String username = RestApiUtil.getLoggedInUsername();
         try {
             String lastUpdatedTime = RestAPIPublisherUtil.getApiPublisher(username).getLastUpdatedTimeOfEndpoint(
@@ -137,19 +151,19 @@ public class EndpointsApiServiceImpl extends EndpointsApiService {
 
     /**
      * Updates an existing endpoint
-     * 
-     * @param endpointId ID of the endpoint
-     * @param body Updated endpoint details 
-     * @param contentType Content-Type header value
-     * @param ifMatch If-Match header value
+     *
+     * @param endpointId        ID of the endpoint
+     * @param body              Updated endpoint details
+     * @param contentType       Content-Type header value
+     * @param ifMatch           If-Match header value
      * @param ifUnmodifiedSince If-Unmodified-Since header value
-     * @param minorVersion minor version header
+     * @param request           msf4j request object
      * @return updated endpoint
      * @throws NotFoundException When the particular resource does not exist in the system
      */
     @Override
     public Response endpointsEndpointIdPut(String endpointId, EndPointDTO body, String contentType, String ifMatch,
-            String ifUnmodifiedSince, String minorVersion) throws NotFoundException {
+                                           String ifUnmodifiedSince, Request request) throws NotFoundException {
         String username = "";
         try {
             APIPublisher apiPublisher = RestAPIPublisherUtil.getApiPublisher(username);
@@ -162,7 +176,7 @@ public class EndpointsApiServiceImpl extends EndpointsApiService {
                 return Response.status(ExceptionCodes.ENDPOINT_NOT_FOUND.getHttpStatusCode()).entity(errorDTO).build();
             }
 
-            String existingFingerprint = endpointsEndpointIdGetFingerprint(endpointId, null, null, null, minorVersion);
+            String existingFingerprint = endpointsEndpointIdGetFingerprint(endpointId, null, null, null, request);
             if (!StringUtils.isEmpty(ifMatch) && !StringUtils.isEmpty(existingFingerprint) && !ifMatch
                     .contains(existingFingerprint)) {
                 return Response.status(Response.Status.PRECONDITION_FAILED).build();
@@ -171,29 +185,39 @@ public class EndpointsApiServiceImpl extends EndpointsApiService {
             Endpoint updatedEndpint = new Endpoint.Builder(endpoint).id(endpointId).build();
             apiPublisher.updateEndpoint(updatedEndpint);
             Endpoint updatedEndpoint = apiPublisher.getEndpoint(endpointId);
-            String newFingerprint = endpointsEndpointIdGetFingerprint(endpointId, null, null, null, minorVersion);
+            String newFingerprint = endpointsEndpointIdGetFingerprint(endpointId, null, null, null, request);
             return Response.ok().header(HttpHeaders.ETAG, "\"" + newFingerprint + "\"")
                     .entity(MappingUtil.toEndPointDTO(updatedEndpoint)).build();
         } catch (APIManagementException e) {
             String errorMessage = "Error while getting the endpoint :" + endpointId;
-            org.wso2.carbon.apimgt.rest.api.common.dto.ErrorDTO errorDTO = RestApiUtil.getErrorDTO(e.getErrorHandler());
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(e.getErrorHandler());
             log.error(errorMessage, e);
             return Response.status(e.getErrorHandler().getHttpStatusCode()).entity(errorDTO).build();
+        } catch (JsonProcessingException e) {
+            String errorMessage = "Error while Converting Endpoint Security Details in Endpoint :" + endpointId;
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(errorMessage, 900313L, errorMessage);
+            log.error(errorMessage, e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(errorDTO).build();
+        } catch (IOException e) {
+            String errorMessage = "Error while Converting Endpoint Security Details in Endpoint :" + endpointId;
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(errorMessage, 900313L, errorMessage);
+            log.error(errorMessage, e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(errorDTO).build();
         }
     }
 
     /**
      * Retrieve all endpoints available
-     * 
-     * @param accept Accept header value
-     * @param ifNoneMatch If-None-Match header value
+     *
+     * @param accept          Accept header value
+     * @param ifNoneMatch     If-None-Match header value
      * @param ifModifiedSince If-Modified-Since header
-     * @param minorVersion minor version header
-     * @return A list of endpoints avaliable 
+     * @param request         msf4j request object
+     * @return A list of endpoints avaliable
      * @throws NotFoundException When the particular resource does not exist in the system
      */
     @Override
-    public Response endpointsGet(String accept, String ifNoneMatch, String ifModifiedSince, String minorVersion)
+    public Response endpointsGet(String accept, String ifNoneMatch, String ifModifiedSince, Request request)
             throws NotFoundException {
         String username = "";
         try {
@@ -207,7 +231,33 @@ public class EndpointsApiServiceImpl extends EndpointsApiService {
             return Response.ok().entity(endPointListDTO).build();
         } catch (APIManagementException e) {
             String errorMessage = "Error while get All Endpoint";
-            org.wso2.carbon.apimgt.rest.api.common.dto.ErrorDTO errorDTO = RestApiUtil.getErrorDTO(e.getErrorHandler());
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(e.getErrorHandler());
+            log.error(errorMessage, e);
+            return Response.status(e.getErrorHandler().getHttpStatusCode()).entity(errorDTO).build();
+        } catch (IOException e) {
+            String errorMessage = "Error while Converting Endpoint Security Details in Endpoint";
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(errorMessage, 900313L, errorMessage);
+            log.error(errorMessage, e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(errorDTO).build();
+        }
+    }
+
+    @Override
+    public Response endpointsHead(String name, String accept, String ifNoneMatch, Request request) throws
+            NotFoundException {
+        String username = RestApiUtil.getLoggedInUsername();
+        boolean status;
+        try {
+            APIPublisher apiPublisher = RestAPIPublisherUtil.getApiPublisher(username);
+            if (apiPublisher.isEndpointExist(name)) {
+                return Response.status(Response.Status.OK).build();
+            } else {
+                return Response.status(Response.Status.NOT_FOUND).build();
+            }
+        } catch (APIManagementException e) {
+            String errorMessage = "Error while checking status.";
+            HashMap<String, String> paramList = new HashMap<String, String>();
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(e.getErrorHandler(), paramList, e);
             log.error(errorMessage, e);
             return Response.status(e.getErrorHandler().getHttpStatusCode()).entity(errorDTO).build();
         }
@@ -215,19 +265,19 @@ public class EndpointsApiServiceImpl extends EndpointsApiService {
 
     /**
      * Adds a new Endpoint
-     * 
-     * @param body Endpoint details to be added
-     * @param contentType Content-Type header value
-     * @param accept Accept header value
-     * @param ifNoneMatch If-None-Match header value
+     *
+     * @param body            Endpoint details to be added
+     * @param contentType     Content-Type header value
+     * @param accept          Accept header value
+     * @param ifNoneMatch     If-None-Match header value
      * @param ifModifiedSince If-Modified-Since header
-     * @param minorVersion minor version header
+     * @param request         msf4j request object
      * @return Newly created endpoint details as the payload
      * @throws NotFoundException When the particular resource does not exist in the system
      */
     @Override
     public Response endpointsPost(EndPointDTO body, String contentType, String accept, String ifNoneMatch,
-            String ifModifiedSince, String minorVersion) throws NotFoundException {
+                                  String ifModifiedSince, Request request) throws NotFoundException {
         String username = "";
         try {
             APIPublisher apiPublisher = RestAPIPublisherUtil.getApiPublisher(username);
@@ -238,9 +288,19 @@ public class EndpointsApiServiceImpl extends EndpointsApiService {
                     .build();
         } catch (APIManagementException e) {
             String errorMessage = "Error while get All Endpoint";
-            org.wso2.carbon.apimgt.rest.api.common.dto.ErrorDTO errorDTO = RestApiUtil.getErrorDTO(e.getErrorHandler());
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(e.getErrorHandler());
             log.error(errorMessage, e);
             return Response.status(e.getErrorHandler().getHttpStatusCode()).entity(errorDTO).build();
+        } catch (JsonProcessingException e) {
+            String errorMessage = "Error while Converting Endpoint Security Details in Endpoint";
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(errorMessage, 900313L, errorMessage);
+            log.error(errorMessage, e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(errorDTO).build();
+        } catch (IOException e) {
+            String errorMessage = "Error while Converting Endpoint Security Details in Endpoint ";
+            ErrorDTO errorDTO = RestApiUtil.getErrorDTO(errorMessage, 900313L, errorMessage);
+            log.error(errorMessage, e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(errorDTO).build();
         }
     }
 }

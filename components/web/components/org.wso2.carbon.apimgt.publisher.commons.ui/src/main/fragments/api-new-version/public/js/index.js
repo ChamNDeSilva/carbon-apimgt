@@ -47,7 +47,7 @@ function createNewVersion(event) {
                 maxVisible: 10,
                 callback: {
                     afterClose: function () {
-                        window.location = contextPath + "/";
+                        window.location = contextPath + "/apis/" + response.obj.id;
                     },
                 }
             });
@@ -76,4 +76,5 @@ $(document).ready(function () {
     var api_id = document.getElementById("apiId").value;
     client.get(api_id, getAPICallback);
     $(document).on('click', "#btn-add-new-version", {api_id:api_id,api_client:client}, createNewVersion);
+    validateActionButtons('#btn-add-new-version');
 });

@@ -24,13 +24,11 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.wso2.carbon.apimgt.core.api.APIDefinition;
-import org.wso2.carbon.apimgt.core.api.KeyManager;
 import org.wso2.carbon.apimgt.core.exception.APIManagementException;
 import org.wso2.carbon.apimgt.core.exception.ErrorHandler;
 import org.wso2.carbon.apimgt.core.exception.ExceptionCodes;
-import org.wso2.carbon.apimgt.core.exception.KeyManagementException;
-import org.wso2.carbon.apimgt.core.factory.KeyManagerHolder;
 import org.wso2.carbon.apimgt.core.impl.APIDefinitionFromSwagger20;
+import org.wso2.carbon.apimgt.core.impl.APIManagerFactory;
 import org.wso2.carbon.apimgt.core.models.AccessTokenInfo;
 import org.wso2.carbon.apimgt.core.models.Scope;
 import org.wso2.carbon.apimgt.rest.api.common.APIConstants;
@@ -78,7 +76,8 @@ public class OAuth2Authenticator implements RESTAPIAuthenticator {
         ErrorHandler errorHandler = null;
         boolean isTokenValid = false;
         Headers headers = request.getHeaders();
-        if (headers != null && headers.contains(RestApiConstants.COOKIE_HEADER)) {
+        if (headers != null && headers.contains(RestApiConstants.COOKIE_HEADER) && isCookieExists(headers,
+                APIConstants.AccessTokenConstants.AM_TOKEN_MSF4J)) {
             String accessToken = null;
             String cookies = headers.get(RestApiConstants.COOKIE_HEADER);
             String partialTokenFromCookie = extractPartialAccessTokenFromCookie(cookies);
@@ -153,12 +152,23 @@ public class OAuth2Authenticator implements RESTAPIAuthenticator {
     private String extractPartialAccessTokenFromCookie(String cookie) {
         cookie = cookie.trim();
         String[] cookies = cookie.split(";");
-        String token2 = Arrays.stream(cookies).filter(name -> name.contains(APIConstants.AccessTokenConstants.TOKEN_2))
+        String token2 = Arrays.stream(cookies)
+                .filter(name -> name.contains(APIConstants.AccessTokenConstants.AM_TOKEN_MSF4J))
                 .findFirst().orElse("");
         if (token2.split("=").length == 2) {
             return token2.split("=")[1];
         }
         return null;
+    }
+
+    private boolean isCookieExists (Headers headers, String cookieName) {
+        String cookie = headers.get(RestApiConstants.COOKIE_HEADER);
+        cookie = cookie.trim();
+        String[] cookies = cookie.split(";");
+        String token2 = Arrays.stream(cookies)
+                .filter(name -> name.contains(cookieName))
+                .findFirst().orElse(null);
+        return (token2 != null);
     }
 
     /*
@@ -280,8 +290,8 @@ public class OAuth2Authenticator implements RESTAPIAuthenticator {
      */
     private AccessTokenInfo getValidatedTokenResponse(String accessToken) throws APIMgtSecurityException {
         try {
-            KeyManager loginKeyManager = KeyManagerHolder.getAMLoginKeyManagerInstance();
-            AccessTokenInfo accessTokenInfo = loginKeyManager.getTokenMetaData(accessToken);
+            AccessTokenInfo accessTokenInfo = APIManagerFactory.getInstance().getIdentityProvider()
+                    .getTokenMetaData(accessToken);
             return accessTokenInfo;
             /*
             url = new URL(authServerURL);
@@ -298,7 +308,7 @@ public class OAuth2Authenticator implements RESTAPIAuthenticator {
             log.error("Error invoking Authorization Server", e);
             throw new APIMgtSecurityException("Error invoking Authorization Server", ExceptionCodes.AUTH_GENERAL_ERROR);
         */
-        } catch (KeyManagementException e) {
+        } catch (APIManagementException e) {
             log.error("Error while validating access token", e);
             throw new APIMgtSecurityException("Error while validating access token", ExceptionCodes.AUTH_GENERAL_ERROR);
         }

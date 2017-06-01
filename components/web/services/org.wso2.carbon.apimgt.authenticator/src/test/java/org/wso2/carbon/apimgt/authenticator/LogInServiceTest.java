@@ -45,11 +45,12 @@ import static org.testng.AssertJUnit.assertTrue;
 
 public class LogInServiceTest {
 
-
     private final AuthenticatorAPI testMicroservice = new AuthenticatorAPI();
     private MicroservicesRunner microservicesRunner;
     public static final String HOSTNAME = "localhost";
     public static final int PORT = 8094;
+    public static final int HTTP_PORT = 9763;
+    public static final int HTTPS_PORT = 9443;
     public static final String HEADER_KEY_CONNECTION = "CONNECTION";
     public static final String HEADER_VAL_CLOSE = "CLOSE";
     protected static URI baseURI;
@@ -72,10 +73,11 @@ public class LogInServiceTest {
     @BeforeClass
     public void setup() throws Exception {
 
-        wireMockRule = new WireMockRule(wireMockConfig().httpsPort(9292));
+        wireMockRule = new WireMockRule(wireMockConfig().port(HTTP_PORT).httpsPort(HTTPS_PORT));
         wireMockRule.start();
 
-        wireMockRule.stubFor(post(urlEqualTo("/keyserver/identity/connect/register")).withBasicAuth("admin", "admin")
+        // Mock service for key manager DCR endpoint
+        wireMockRule.stubFor(post(urlEqualTo("/identity/connect/register")).withBasicAuth("admin", "admin")
                 .withRequestBody(equalToJson("{\"client_name\":\"oauth_application\"}", true, true)).willReturn(
                         aResponse().withStatus(201).withHeader("Content-Type", "application/json").withBody(
                                 "{\"client_name\":\"publisher_application\","
@@ -84,7 +86,8 @@ public class LogInServiceTest {
                                         + "\"redirect_uris\":[\"\"],\"grant_types\":[\"password\","
                                         + "\"refresh_token\"]}")));
 
-        wireMockRule.stubFor(post(urlEqualTo("/keyserver/oauth2/token"))
+        // Mock service for key manager token endpoint
+        wireMockRule.stubFor(post(urlEqualTo("/oauth2/token"))
                 .willReturn(
                         aResponse().withStatus(200).withHeader("Content-Type", "application/x-www-form-urlencoded")
                                 .withBody("{\"access_token\":\"8d4f62ea-edc5-419d-a898-a517f9d3d6f9\","
@@ -92,19 +95,23 @@ public class LogInServiceTest {
                                         + "\"expires_in\":3600,\"scopes\":[\"apim:api_view\",\"apim:api_create\","
                                         + "\"apim:api_publish\",\"apim:tier_view\",\"apim:tier_manage\","
                                         + "\"apim:subscription_view\",\"apim:subscription_block\",\"apim:subscribe\","
-                                        + "\"apim:api_workflow\"],\"expiresTimestamp\":1490615736702}")));
+                                        + "\"apim:workflow_approve\"],\"expiresTimestamp\":1490615736702}")));
+
+        // Mock service for key manager revoke endpoint
+        wireMockRule.stubFor(post(urlEqualTo("/oauth2/revoke")).willReturn(aResponse().withStatus(200)));
 
         baseURI = URI.create(String.format("http://%s:%d", HOSTNAME, PORT));
         microservicesRunner = new MicroservicesRunner(PORT);
         microservicesRunner
                 .deploy(testMicroservice)
                 .start();
-
     }
 
     @AfterClass
     public void teardown() throws Exception {
         microservicesRunner.stop();
+        wireMockRule.resetAll();
+        wireMockRule.stop();
     }
 
     protected HttpURLConnection request(String path, String method, boolean keepAlive) throws IOException {
@@ -141,6 +148,8 @@ public class LogInServiceTest {
     @Test
     public void testLogOut() throws IOException {
         HttpURLConnection urlConn = request("/oauth/revoke", HttpMethod.POST, true);
+        urlConn.setRequestProperty("Authorization", "Bearer 1234");
+        urlConn.setRequestProperty("Cookie", "WSO2_AM_TOKEN_2=2345");
         assertEquals(200, urlConn.getResponseCode());
 
         urlConn.disconnect();

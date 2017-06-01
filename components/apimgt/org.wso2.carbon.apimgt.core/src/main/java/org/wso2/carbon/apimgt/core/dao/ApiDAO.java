@@ -22,12 +22,17 @@ package org.wso2.carbon.apimgt.core.dao;
 
 import org.wso2.carbon.apimgt.core.exception.APIMgtDAOException;
 import org.wso2.carbon.apimgt.core.models.API;
+import org.wso2.carbon.apimgt.core.models.Comment;
 import org.wso2.carbon.apimgt.core.models.DocumentInfo;
 import org.wso2.carbon.apimgt.core.models.Endpoint;
+import org.wso2.carbon.apimgt.core.models.Rating;
+import org.wso2.carbon.apimgt.core.models.UriTemplate;
+import org.wso2.carbon.apimgt.core.util.APIMgtConstants.APILCWorkflowStatus;
 
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.annotation.CheckForNull;
 
 /**
@@ -52,7 +57,6 @@ public interface ApiDAO {
      */
     @CheckForNull
     API getAPISummary(String apiID) throws APIMgtDAOException;
-
 
     /**
      * Retrieves the last updated time of an API
@@ -83,29 +87,45 @@ public interface ApiDAO {
 
     /**
      * Retrieves summary data of all available APIs.
+     *
+     * @param apiType Type of API
      * @return {@code List<API>} matching results
      * @throws APIMgtDAOException if error occurs while accessing data layer
      *
      */
-    List<API> getAPIs() throws APIMgtDAOException;
+    List<API> getAPIs(ApiType apiType) throws APIMgtDAOException;
 
     /**
      * Retrieves summary data of all available APIs of a given provider.
      * @param providerName A given API Provider
+     * @param apiType Type of API
      * @return {@code List<API>} matching results
      * @throws APIMgtDAOException if error occurs while accessing data layer
      *
      */
-    List<API> getAPIsForProvider(String providerName) throws APIMgtDAOException;
+    List<API> getAPIsForProvider(String providerName, ApiType apiType) throws APIMgtDAOException;
 
     /**
      * Retrieves summary data of all available APIs with life cycle status that matches the status list provided
      * @param statuses A list of matching life cycle statuses
+     * @param apiType Type of API
      * @return {@code List<API>} matching results
      * @throws APIMgtDAOException if error occurs while accessing data layer
      *
      */
-    List<API> getAPIsByStatus(List<String> statuses) throws APIMgtDAOException;
+    List<API> getAPIsByStatus(List<String> statuses, ApiType apiType) throws APIMgtDAOException;
+
+    /**
+     * Retrieves summary data of all available APIs with life cycle status that matches the status list provided
+     * which has role based visibility
+     *
+     * @param roles    role list of current user
+     * @param statuses status of APIs to be returned
+     * @param apiType Type of API
+     * @return API list
+     * @throws APIMgtDAOException if failed to fetch APIs from database
+     */
+    List<API> getAPIsByStatus(Set<String> roles, List<String> statuses, ApiType apiType) throws APIMgtDAOException;
 
     /**
      * Retrieves summary of paginated data of all available APIs that match the given search criteria. This will use
@@ -113,50 +133,66 @@ public interface ApiDAO {
      * @param roles     List of the roles of the user.
      * @param user      Current user.
      * @param searchString The search string provided
-     * @param offset  The starting point of the search results.
-     * @param limit   Number of search results that will be returned.
+     * @param apiType Type of API
+     * @param offset  The starting point of the formatApiSearch results.
+     * @param limit   Number of formatApiSearch results that will be returned.
      * @return {@code List<API>} matching results
      * @throws APIMgtDAOException if error occurs while accessing data layer
      *
      */
-    List<API> searchAPIs(List<String> roles, String user, String searchString, int offset, int limit) throws
-            APIMgtDAOException;
+    List<API> searchAPIs(Set<String> roles, String user, String searchString, ApiType apiType, int offset, int limit)
+            throws APIMgtDAOException;
 
     /**
      * Retrieves summary of paginated data of all available APIs that match the given search criteria.
      * @param roles     List of the roles of the user.
      * @param user      Current user.
      * @param attributeMap Map containing the attributes and search queries for those attributes
-     * @param offset  The starting point of the search results.
-     * @param limit   Number of search results that will be returned.
+     * @param apiType Type of API
+     * @param offset  The starting point of the formatApiSearch results.
+     * @param limit   Number of formatApiSearch results that will be returned.
      * @return {@code List<API>} matching results
      * @throws APIMgtDAOException if error occurs while accessing data layer
      *
      */
-    List<API> attributeSearchAPIs(List<String> roles, String user, Map<String, String> attributeMap, int offset, int
-            limit) throws
-            APIMgtDAOException;
+    List<API> attributeSearchAPIs(Set<String> roles, String user, Map<String, String> attributeMap, ApiType apiType,
+                                  int offset, int limit) throws APIMgtDAOException;
+
+    /**
+     * Retrieves summary of paginated data of APIs based on visibility (in store), that match the
+     * given search criteria.
+     * @param roles List of the roles of the user.
+     * @param attributeMap Map containing the attributes to be searched
+     * @param offset The starting point of the search results.
+     * @param limit Number of search results that will be returned.
+     * @return {@code List<API>} matching results
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    List<API> searchAPIsByAttributeInStore(List<String> roles, Map<String, String> attributeMap,
+                                           int offset, int limit) throws APIMgtDAOException;
 
     /**
      * Retrieves summary data of all available APIs with life cycle status that matches the status list provided
-     * and matches the given search criteria.
+     * and matches the given formatApiSearch criteria.
      * @param searchString The search string provided
      * @param statuses A list of matching life cycle statuses
+     * @param apiType Type of API
      * @return {@code List<API>} matching results
      * @throws APIMgtDAOException if error occurs while accessing data layer
      *
      */
-    List<API> searchAPIsByStatus(String searchString, List<String> statuses) throws APIMgtDAOException;
+    List<API> searchAPIsByStatus(String searchString, List<String> statuses, ApiType apiType) throws APIMgtDAOException;
 
     /**
      * Checks if a given API which is uniquely identified by the Provider, API Name and Version combination already
      * exists
      * @param apiName Name of API
      * @param providerName Provider of the API.
+     * @param apiType Type of API
      * @return true if providerName, apiName, version combination already exists else false
      * @throws APIMgtDAOException if error occurs while accessing data layer
      */
-    boolean isAPINameExists(String apiName, String providerName) throws APIMgtDAOException;
+    boolean isAPINameExists(String apiName, String providerName, ApiType apiType) throws APIMgtDAOException;
 
     /**
      * Checks if a given API Context already exists
@@ -290,11 +326,11 @@ public interface ApiDAO {
      *
      * @param resourceID UUID of resource
      * @param content    File content as an InputStream
-     * @param fileName
+     * @param dataType File mime type
      * @param updatedBy user who performs the action
      * @throws APIMgtDAOException if error occurs while accessing data layer
      */
-    void addDocumentFileContent(String resourceID, InputStream content, String fileName, String updatedBy) throws
+    void addDocumentFileContent(String resourceID, InputStream content, String dataType, String updatedBy) throws
             APIMgtDAOException;
 
     /**
@@ -449,5 +485,171 @@ public interface ApiDAO {
      * @return last updated time 
      */
     String getLastUpdatedTimeOfEndpoint(String endpointId) throws APIMgtDAOException;
+    
+    /**
+     * Update an existing API workflow state
+     *
+     * @param apiID         The {@link String} of the API that needs to be updated
+     * @param workflowStatus workflow status
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    void updateAPIWorkflowStatus(String apiID, APILCWorkflowStatus workflowStatus) throws APIMgtDAOException;
+
+    /**
+     * Returns all the available labels
+     *
+     * @param commentId UUID of the comment
+     * @param apiId UUID of the API
+     * @return Comment Object
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    Comment getCommentByUUID(String commentId, String apiId) throws APIMgtDAOException;
+
+    /**
+     * Adds comment for a specific Api
+     *
+     * @param comment the comment text
+     * @param apiId UUID of the Api
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    void addComment(Comment comment, String apiId) throws APIMgtDAOException;
+
+    /**
+     *  Deletes a comment
+     *
+     * @param commentId UUID of the comment
+     * @param apiId UUID of the api
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    void deleteComment(String commentId, String apiId) throws APIMgtDAOException;
+
+    /**
+     *  Updates an already existing comment
+     *
+     * @param comment new comment
+     * @param commentId old comment uuid
+     * @param apiId uuid of the api associated with the comment
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    void updateComment(Comment comment, String commentId, String apiId) throws APIMgtDAOException;
+
+    /**
+     * Retrieves all comments for an api
+     *
+     * @param apiId UUID of the api
+     * @return List of comments for the api
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    List<Comment> getCommentsForApi(String apiId) throws APIMgtDAOException;
+
+    /**
+     * Retrieves last updated time of comment
+     *
+     * @param commentId UUID of the comment
+     * @return Last updated time of comment
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    String getLastUpdatedTimeOfComment(String commentId) throws APIMgtDAOException;
+
+    /**
+     * return list of respurces associated with API
+     *
+     * @param apiContext context of API
+     * @param apiVersion version of API
+     * @return list of resources
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    List<UriTemplate> getResourcesOfApi(String apiContext, String apiVersion) throws APIMgtDAOException;
+    /**
+     * Check Endpoint is exist
+     * @param name name of endpoint
+     * @return existence of endpoint
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    boolean isEndpointExist(String name) throws APIMgtDAOException;
+
+    /**
+     * Check endpoint use in api or operation
+     * @param endpointId id of endpoint
+     * @return true if used
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    boolean isEndpointAssociated(String endpointId) throws APIMgtDAOException;
+
+    /**
+     * Retrieves available APIs with given life cycle status and gateway labels.
+     * @param gatewayLabels A list of gateway labels
+     * @param status Life cycle status
+     * @return {@code List<API>} matching results
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     *
+     */
+    List<API> getAPIsByStatus(List<String> gatewayLabels, String status) throws APIMgtDAOException;
+
+    /**
+     * Retrieves available APIs with given gateway labels.
+     * @param gatewayLabels A list of gateway labels
+     * @return {@code List<API>} matching results
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     *
+     */
+    List<API> getAPIsByGatewayLabel(List<String> gatewayLabels) throws APIMgtDAOException;
+
+    /**
+     * Add a rating for an api.
+     * By default the max rating value is 5. To update the max rating, add "ratingMaxValue" config to deployment.yaml
+     * and set a suitable value.
+     *
+     * @param apiId UUID of the api
+     * @param rating rating object
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    void addRating(String apiId, Rating rating) throws APIMgtDAOException;
+
+    /**
+     * Update an existing rating
+     *
+     * @param apiId  UUID of the api
+     * @param ratingId UUID of the rating
+     * @param ratingFromPayload Rating object from request payload
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    void updateRating(String apiId, String ratingId, Rating ratingFromPayload) throws APIMgtDAOException;
+
+    /**
+     * Retrieve user rating for a given api
+     *
+     * @param apiId UUID of the api
+     * @param userId unique userId of the user
+     * @return user rating for an api
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    Rating getUserRatingForApiFromUser(String apiId, String userId) throws APIMgtDAOException;
+
+    /**
+     * Retrieve rating given the uuid
+     *
+     * @param apiId  UUID of the api
+     * @param ratingId  UUID of the rating
+     * @return the rating object for a given uuid
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    Rating getRatingByUUID(String apiId, String ratingId) throws APIMgtDAOException;
+
+    /**
+     * Retrieve average rating for an api
+     *
+     * @param apiId  UUID of the api
+     * @return average rating of the api
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    double getAverageRating(String apiId) throws APIMgtDAOException;
+
+    /**
+     * @param apiId  UUID of the api
+     * @return list of ratings for an api
+     * @throws APIMgtDAOException if error occurs while accessing data layer
+     */
+    List<Rating> getRatingsListForApi(String apiId) throws APIMgtDAOException;
 
 }
