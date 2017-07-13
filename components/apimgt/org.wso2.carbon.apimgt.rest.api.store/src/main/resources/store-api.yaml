@@ -2835,6 +2835,9 @@ definitions:
           description: |
             Supported transports for the API (http and/or https).
           type: string
+      hasOwnGateway:
+        type: boolean
+        default: false
       labels:
         type: array
         items:

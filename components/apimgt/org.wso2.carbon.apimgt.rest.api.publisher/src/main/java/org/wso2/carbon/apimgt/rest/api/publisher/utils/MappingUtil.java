@@ -97,6 +97,7 @@ public class MappingUtil {
         apidto.setLifeCycleStatus(api.getLifeCycleStatus());
         apidto.setWorkflowStatus(api.getWorkflowStatus());
         apidto.setTags(new ArrayList<>(api.getTags()));
+        apidto.setHasOwnGateway(api.hasOwnGateway());
         apidto.setLabels(new ArrayList<>(api.getLabels()));
         apidto.setTransport(new ArrayList<>(api.getTransport()));
         apidto.setUserPermissionsForApi(api.getUserSpecificApiPermissions());
@@ -210,6 +211,7 @@ public class MappingUtil {
                 policies(subscriptionPolicies).
                 permission(apidto.getPermission()).
                 tags(new HashSet<>(apidto.getTags())).
+                setHasOwnGateway(apidto.getHasOwnGateway()).
                 labels(new HashSet<>(apidto.getLabels())).
                 transport(new HashSet<>(apidto.getTransport())).
                 isResponseCachingEnabled(Boolean.valueOf(apidto.getResponseCaching())).
@@ -378,7 +380,7 @@ public class MappingUtil {
     /**
      * Converts Subscription to SubscriptionDTO
      *
-     * @param subscription subscription model containg subscription details
+     * @param subscription subscription model contain subscription details
      * @return SubscriptionDTO containing subscription list
      */
     public static SubscriptionDTO fromSubscription(Subscription subscription) {

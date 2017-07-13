@@ -15,6 +15,7 @@ import org.wso2.msf4j.Request;
 import org.wso2.msf4j.formparam.FileInfo;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.UUID;
 import javax.ws.rs.core.Response;

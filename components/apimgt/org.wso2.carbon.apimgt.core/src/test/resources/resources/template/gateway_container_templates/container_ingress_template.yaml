@@ -1,0 +1,18 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ${ingressName}
+spec:
+  rules:
+  - host: ${gatewayHostName} #Can use the service name itself here
+    http:
+      paths:
+      - backend:
+          serviceName: website
+          servicePort: 9090
+    # check how https is working
+    https:
+          paths:
+          - backend:
+              serviceName: website
+              servicePort: 9092

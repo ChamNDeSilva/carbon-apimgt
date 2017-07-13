@@ -3246,6 +3246,9 @@ definitions:
         items:
           type: string
         example: ["substract","add"]
+      hasOwnGateway:
+        type: boolean
+        default: false
       labels:
         type: array
         items:

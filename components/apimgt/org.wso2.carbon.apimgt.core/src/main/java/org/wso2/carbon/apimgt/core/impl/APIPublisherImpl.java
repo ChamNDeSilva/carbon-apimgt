@@ -217,7 +217,25 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
         apiBuilder.lastUpdatedTime(localDateTime);
         apiBuilder.createdBy(getUsername());
         apiBuilder.updatedBy(getUsername());
-        if (apiBuilder.getLabels().isEmpty()) {
+        // if has own gateway feature enabled
+        if (apiBuilder.hasOwnGateway()) {
+
+            // create a label
+            List<Label> labelList = new ArrayList<>();
+            Label autoGenLabel = new Label.Builder().
+                    id(UUID.randomUUID().toString()).
+                    name("PERAPIGW-" + apiBuilder.getId()).
+                    accessUrls(null).build();
+            labelList.add(autoGenLabel);
+            //Add to the db
+            getLabelDAO().addLabels(labelList);
+            //add to the API
+            Set<String> labelSet = new HashSet<>();
+            labelSet.add("PERAPIGW-" + apiBuilder.getId());
+            apiBuilder.labels(labelSet);
+
+        }
+        if (apiBuilder.getLabels().isEmpty() && !apiBuilder.hasOwnGateway()) {
             Set<String> labelSet = new HashSet<>();
             labelSet.add(APIMgtConstants.DEFAULT_LABEL_NAME);
             apiBuilder.labels(labelSet);
@@ -427,7 +445,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
     /**
      * Updates design and implementation of an existing API. This method must not be used to change API status.
      * Implementations should throw an exceptions when such attempts are made. All life cycle state changes
-     * should be carried out using the changeAPIStatus method of this interface.
+     * should be carried out using the updateAPIStatus method of this interface.
      *
      * @param apiBuilder {@code org.wso2.carbon.apimgt.core.models.API.APIBuilder} model object
      * @throws APIManagementException if failed to update API
@@ -460,6 +478,30 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                     validateApiPolicy(apiBuilder.getApiPolicy());
                     validateSubscriptionPolicies(apiBuilder);
                     String updatedSwagger = apiDefinitionFromSwagger20.generateSwaggerFromResources(apiBuilder);
+
+                    // changing hasOwnGateway from false to true
+                    // todo: check whether we can compare the set with a  String
+                    if (apiBuilder.hasOwnGateway() && !originalAPI.hasOwnGateway()) {
+                        // create a label
+                        List<Label> labelList = new ArrayList<>();
+                        Label autoGenLabel = new Label.Builder().
+                                id(UUID.randomUUID().toString()).
+                                name("PERAPIGW-" + apiBuilder.getId()).
+                                accessUrls(null).build();
+                        labelList.add(autoGenLabel);
+                        //Add to the db
+                        getLabelDAO().addLabels(labelList);
+                        // Deleting the label is not required. As mapping for the API is getting updated later.
+                        //add to the API
+                        Set<String> labelSet = new HashSet<>();
+                        labelSet.add("PERAPIGW-" + apiBuilder.getId());
+                        apiBuilder.labels(labelSet);
+
+                    } else if (!apiBuilder.hasOwnGateway() && originalAPI.hasOwnGateway()) {
+                        //delete the previous label created.
+                        getLabelDAO().deleteLabel("PERAPIGW-" + apiBuilder.getId());
+                        //cleaning up the gateway and API will happen after adding to the topic
+                    }
                     String gatewayConfig = getApiGatewayConfig(apiBuilder.getId());
                     GatewaySourceGenerator gatewaySourceGenerator = getGatewaySourceGenerator();
                     APIConfigContext apiConfigContext = new APIConfigContext(apiBuilder.build(), config
@@ -471,7 +513,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                     API api = apiBuilder.build();
 
                     //Add API to gateway
-                    gateway.updateAPI(api);
+                    gateway.updateAPI(api, originalAPI.hasOwnGateway());
                     if (log.isDebugEnabled()) {
                         log.debug("API : " + apiBuilder.getName() + " has been successfully updated in gateway");
                     }

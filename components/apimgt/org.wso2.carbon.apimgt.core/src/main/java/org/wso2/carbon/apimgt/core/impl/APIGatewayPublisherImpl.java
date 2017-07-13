@@ -21,10 +21,12 @@ package org.wso2.carbon.apimgt.core.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.wso2.carbon.apimgt.core.api.APIGateway;
+import org.wso2.carbon.apimgt.core.api.APIPublisher;
 import org.wso2.carbon.apimgt.core.configuration.models.APIMConfigurations;
 import org.wso2.carbon.apimgt.core.exception.GatewayException;
 import org.wso2.carbon.apimgt.core.internal.ServiceReferenceHolder;
 import org.wso2.carbon.apimgt.core.models.API;
+import org.wso2.carbon.apimgt.core.models.APIStatus;
 import org.wso2.carbon.apimgt.core.models.APISummary;
 import org.wso2.carbon.apimgt.core.models.Application;
 import org.wso2.carbon.apimgt.core.models.BlockConditions;
@@ -39,27 +41,33 @@ import org.wso2.carbon.apimgt.core.models.events.EndpointEvent;
 import org.wso2.carbon.apimgt.core.models.events.GatewayEvent;
 import org.wso2.carbon.apimgt.core.models.events.PolicyEvent;
 import org.wso2.carbon.apimgt.core.models.events.SubscriptionEvent;
+import org.wso2.carbon.apimgt.core.template.ContainerBasedGatewayTemplateBuilder;
 import org.wso2.carbon.apimgt.core.util.APIMgtConstants;
 import org.wso2.carbon.apimgt.core.util.APIUtils;
 import org.wso2.carbon.apimgt.core.util.BrokerUtil;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This is responsible for handling API gateway related operations
  */
 public class APIGatewayPublisherImpl implements APIGateway {
     private static final Logger log = LoggerFactory.getLogger(APIGatewayPublisherImpl.class);
-    private APIMConfigurations config;
     private String publisherTopic;
     private String storeTopic;
     private String throttleTopic;
+    private APIMConfigurations apimConfigurations;
 
-    public APIGatewayPublisherImpl() {
-        config = ServiceReferenceHolder.getInstance().getAPIMConfiguration();
+    APIGatewayPublisherImpl() {
+        APIMConfigurations config = ServiceReferenceHolder.getInstance().getAPIMConfiguration();
         publisherTopic = config.getBrokerConfigurations().getPublisherTopic();
         storeTopic = config.getBrokerConfigurations().getStoreTopic();
         throttleTopic = config.getBrokerConfigurations().getThrottleTopic();
+        apimConfigurations = new APIMConfigurations();
+
+
     }
 
     @Override
@@ -70,10 +78,15 @@ public class APIGatewayPublisherImpl implements APIGateway {
         apiCreateEvent.setLabels(api.getLabels());
         apiCreateEvent.setApiSummary(toAPISummary(api));
         publishToPublisherTopic(apiCreateEvent);
+
+        //No need to create the gateway as this is in created state.
+        /*if (api.hasOwnGateway()) {
+            // if hasOwnGateway is true, then the api should have only one label.
+            createContainerBasedGateway(api.getId(), api.getLabels().toArray()[0].toString(), apimConfigurations);
+        }*/
         if (log.isDebugEnabled()) {
             log.debug("API : " + api.getName() + " created event has been successfully published to broker");
         }
-
     }
 
     @Override
@@ -89,16 +102,35 @@ public class APIGatewayPublisherImpl implements APIGateway {
         gatewayDTO.setApiSummary(apiSummary);
         publishToPublisherTopic(gatewayDTO);
 
+        //todo : check feature is enabled, create gateway and add the API
+
     }
 
     @Override
-    public void updateAPI(API api) throws GatewayException {
+    public void updateAPI(API api, boolean originalApiHadOwnGateway) throws GatewayException {
 
         // build the message to send
         APIEvent apiUpdateEvent = new APIEvent(APIMgtConstants.GatewayEventTypes.API_UPDATE);
         apiUpdateEvent.setLabels(api.getLabels());
         apiUpdateEvent.setApiSummary(toAPISummary(api));
         publishToPublisherTopic(apiUpdateEvent);
+
+        // If API is a published or a prototyped API
+        if (api.getLifeCycleStatus().equalsIgnoreCase(APIStatus.PUBLISHED.getStatus()) ||
+                api.getLifeCycleStatus().equalsIgnoreCase(APIStatus.PROTOTYPED.getStatus())) {
+
+            if (!originalApiHadOwnGateway && api.hasOwnGateway()) {
+                // label is created beforehand.
+                createContainerBasedGateway(api.getId(), api.getLabels().toArray()[0].toString(), apimConfigurations);
+            }
+
+            if (originalApiHadOwnGateway && !api.hasOwnGateway()) {
+                // label is deleted beforehand.
+                // to do this for deployment name and the service name we should use a convention
+                removeContainerBasedGateway("PERAPIGW-" + api.getId());
+            }
+        }
+
         if (log.isDebugEnabled()) {
             log.debug("API : " + api.getName() + " updated event has been successfully published to broker");
         }
@@ -421,6 +453,44 @@ public class APIGatewayPublisherImpl implements APIGateway {
             }
         }
     }
+
+     @Override
+    public void createContainerBasedGateway(String apiId, String label, APIMConfigurations apimConfigurations) throws
+     GatewayException {
+
+        String[] gatewayUrls;
+        APIPublisher publisher = null;
+         ContainerBasedGatewayTemplateBuilder builder = new ContainerBasedGatewayTemplateBuilder();
+         KubernetesGatewayImpl kubernetesGateway = new KubernetesGatewayImpl();
+
+        // todo : auto-generate the api-label
+         // create the name for the service, deployment and container
+         Map<String , String> templateValues = new HashMap<>();
+
+         templateValues.put("namespace", apimConfigurations.getContainerGatewayConfigs().getNamespace());
+         templateValues.put("gatewayLabel", label);
+         templateValues.put("serviceName", label + "-service");
+         templateValues.put("deploymentName", label + "-deployment");
+         templateValues.put("containerName", label + "-container");
+         templateValues.put("image", apimConfigurations.getContainerGatewayConfigs().getImage());
+
+         //This should return the access URL
+         gatewayUrls = kubernetesGateway.createKubernetesService(builder.getGatewayServiceTemplate(templateValues),
+                 templateValues.get("serviceName"), templateValues.get("namespace"));
+         kubernetesGateway.createKubernetesDeployment(builder.getGatewayDeploymentTemplate(templateValues),
+                 templateValues.get("deploymentName"), templateValues.get("namespace"));
+
+         //todo : create the config String - use the gateway URLs returned above
+         String configString = null;
+         // todo : need to update the labels as well with the access URLs
+         //publisher.updateApiGatewayConfig(apiId, configString);
+    }
+
+    @Override
+    public void removeContainerBasedGateway(String label) {
+        // delete the service and the deployment created
+    }
+
 
     /**
      * Convert API definition into APISummary

@@ -172,7 +172,19 @@ public enum ExceptionCodes implements ErrorHandler {
     ENDPOINT_CONFIG_NOT_FOUND(90070, "Endpoint Config Not found", 404, "Error while retrieving Endpoint " +
             "Configuration"),
     UNSUPPORTED_THROTTLE_CONDITION_TYPE(900975, "Throttle Condition Error", 400, "Throttle Condition type is not "
-            + "supported");
+            + "supported"),
+    //Container Based Gateway related Codes
+    NO_RESOURCE_LOADED_FROM_FILE(900976, "Container based Resource Not Found", 404, "No Resource Loaded From the"
+            + "File Provided"),
+    LOADED_RESOURCE_IS_NOT_VALID(900977, "Loaded Resource is not valid", 400, "The Resource loaded is not a " +
+            "valid resource definition"),
+    TEMPLATE_FILE_EXCEPTION(900978, "Error writing template to file", 500, " Error writing template to file"),
+    FILE_NOT_FOUND_IN_LOCATION(900979, "No File Found in the Given Location", 404, " File Not Found"),
+    TEMPLATE_LOAD_EXCEPTION(90080, "Error in loading the template file by client as an InputStream", 500,
+            " Error in loading the FileInputStream by client"),
+    CONTENT_ENCODING_NOT_SUPPORTED(90081, "Content of the resource is not supporting UTF-8 Encoding", 500,
+            "Content is not supported UTF-8 Encoding");
+
 
     private final long errorCode;
     private final String errorMessage;

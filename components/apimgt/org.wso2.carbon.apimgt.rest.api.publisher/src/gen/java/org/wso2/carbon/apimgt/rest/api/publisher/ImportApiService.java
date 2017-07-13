@@ -11,6 +11,7 @@ import org.wso2.carbon.apimgt.rest.api.publisher.dto.APIListDTO;
 import org.wso2.carbon.apimgt.rest.api.publisher.dto.ErrorDTO;
 import java.io.File;
 
+import java.io.IOException;
 import java.util.List;
 import org.wso2.carbon.apimgt.rest.api.publisher.NotFoundException;
 

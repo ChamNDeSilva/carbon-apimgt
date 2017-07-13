@@ -166,6 +166,10 @@
         width: 100%;
     }
 }
+footer{
+    position: absolute;
+    bottom: 0;
+}
 .header-default h1{
     font-size: 18px;
     display: inline-block;

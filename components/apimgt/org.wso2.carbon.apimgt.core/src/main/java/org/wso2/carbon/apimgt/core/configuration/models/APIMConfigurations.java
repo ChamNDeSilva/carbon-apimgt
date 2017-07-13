@@ -53,6 +53,9 @@ public class APIMConfigurations {
     @Element(description = "Key Manager Configurations")
     private KeyMgtConfigurations keyManagerConfigs = new KeyMgtConfigurations();
 
+    @Element(description = "Container Based Gateway Configurations")
+    private ContainerBasedGatewayConfiguration containerGatewayConfigs = new ContainerBasedGatewayConfiguration();
+
     @Element(description = "Identity Provider Configurations")
     private IdentityProviderConfigurations identityProviderConfigs = new IdentityProviderConfigurations();
 
@@ -111,6 +114,10 @@ public class APIMConfigurations {
 
     public KeyMgtConfigurations getKeyManagerConfigs() {
         return keyManagerConfigs;
+    }
+
+    public ContainerBasedGatewayConfiguration getContainerGatewayConfigs() {
+        return containerGatewayConfigs;
     }
 
     public IdentityProviderConfigurations getIdentityProviderConfigs() {

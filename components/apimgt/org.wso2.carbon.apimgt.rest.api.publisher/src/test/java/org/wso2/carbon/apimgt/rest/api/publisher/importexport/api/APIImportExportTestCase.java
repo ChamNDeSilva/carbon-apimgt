@@ -309,7 +309,7 @@ public class APIImportExportTestCase {
     }
 
     @Test(description = "Test updateAPIDetails")
-    void testUpdateApiDetails () throws APIManagementException {
+    void testUpdateApiDetails () throws APIManagementException, IOException {
         printTestMethodName();
         apiPublisher = Mockito.mock(APIPublisher.class);
 

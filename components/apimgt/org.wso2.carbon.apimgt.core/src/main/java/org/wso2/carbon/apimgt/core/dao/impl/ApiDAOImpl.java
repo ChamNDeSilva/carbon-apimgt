@@ -86,8 +86,8 @@ public class ApiDAOImpl implements ApiDAO {
             "CURRENT_LC_STATUS, LIFECYCLE_INSTANCE_ID, LC_WORKFLOW_STATUS FROM AM_API";
 
     private static final String API_SELECT = "SELECT UUID, PROVIDER, NAME, CONTEXT, VERSION, IS_DEFAULT_VERSION, " +
-            "DESCRIPTION, VISIBILITY, IS_RESPONSE_CACHED, CACHE_TIMEOUT, TECHNICAL_OWNER, TECHNICAL_EMAIL, " +
-            "BUSINESS_OWNER, BUSINESS_EMAIL, LIFECYCLE_INSTANCE_ID, CURRENT_LC_STATUS, " +
+            "DESCRIPTION, VISIBILITY, IS_RESPONSE_CACHED, HAS_OWN_GATEWAY, CACHE_TIMEOUT, TECHNICAL_OWNER, " +
+            "TECHNICAL_EMAIL, BUSINESS_OWNER, BUSINESS_EMAIL, LIFECYCLE_INSTANCE_ID, CURRENT_LC_STATUS, " +
             "CORS_ENABLED, CORS_ALLOW_ORIGINS, CORS_ALLOW_CREDENTIALS, CORS_ALLOW_HEADERS, CORS_ALLOW_METHODS, " +
             "CREATED_BY, CREATED_TIME, LAST_UPDATED_TIME, COPIED_FROM_API, UPDATED_BY, LC_WORKFLOW_STATUS FROM AM_API";
 
@@ -95,11 +95,11 @@ public class ApiDAOImpl implements ApiDAO {
             "DESCRIPTION, LC_WORKFLOW_STATUS FROM AM_API";
 
     private static final String API_INSERT = "INSERT INTO AM_API (PROVIDER, NAME, CONTEXT, VERSION, " +
-            "IS_DEFAULT_VERSION, DESCRIPTION, VISIBILITY, IS_RESPONSE_CACHED, CACHE_TIMEOUT, " +
-            "UUID, TECHNICAL_OWNER, TECHNICAL_EMAIL, BUSINESS_OWNER, BUSINESS_EMAIL, LIFECYCLE_INSTANCE_ID, " +
+            "IS_DEFAULT_VERSION, DESCRIPTION, VISIBILITY, IS_RESPONSE_CACHED, HAS_OWN_GATEWAY, CACHE_TIMEOUT,"
+            + "UUID, TECHNICAL_OWNER, TECHNICAL_EMAIL, BUSINESS_OWNER, BUSINESS_EMAIL, LIFECYCLE_INSTANCE_ID, " +
             "CURRENT_LC_STATUS, CORS_ENABLED, CORS_ALLOW_ORIGINS, CORS_ALLOW_CREDENTIALS, CORS_ALLOW_HEADERS, " +
             "CORS_ALLOW_METHODS, API_TYPE_ID, CREATED_BY, CREATED_TIME, LAST_UPDATED_TIME, COPIED_FROM_API, " +
-            "UPDATED_BY, LC_WORKFLOW_STATUS) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+            "UPDATED_BY, LC_WORKFLOW_STATUS) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private static final String API_DELETE = "DELETE FROM AM_API WHERE UUID = ?";
 
@@ -621,32 +621,33 @@ public class ApiDAOImpl implements ApiDAO {
         statement.setString(6, api.getDescription());
         statement.setString(7, api.getVisibility().toString());
         statement.setBoolean(8, api.isResponseCachingEnabled());
-        statement.setInt(9, api.getCacheTimeout());
-        statement.setString(10, apiPrimaryKey);
+        statement.setBoolean(9, api.hasOwnGateway());
+        statement.setInt(10, api.getCacheTimeout());
+        statement.setString(11, apiPrimaryKey);
 
         BusinessInformation businessInformation = api.getBusinessInformation();
-        statement.setString(11, businessInformation.getTechnicalOwner());
-        statement.setString(12, businessInformation.getTechnicalOwnerEmail());
-        statement.setString(13, businessInformation.getBusinessOwner());
-        statement.setString(14, businessInformation.getBusinessOwnerEmail());
+        statement.setString(12, businessInformation.getTechnicalOwner());
+        statement.setString(13, businessInformation.getTechnicalOwnerEmail());
+        statement.setString(14, businessInformation.getBusinessOwner());
+        statement.setString(15, businessInformation.getBusinessOwnerEmail());
 
-        statement.setString(15, api.getLifecycleInstanceId());
-        statement.setString(16, api.getLifeCycleStatus());
+        statement.setString(16, api.getLifecycleInstanceId());
+        statement.setString(17, api.getLifeCycleStatus());
 
         CorsConfiguration corsConfiguration = api.getCorsConfiguration();
-        statement.setBoolean(17, corsConfiguration.isEnabled());
-        statement.setString(18, String.join(",", corsConfiguration.getAllowOrigins()));
-        statement.setBoolean(19, corsConfiguration.isAllowCredentials());
-        statement.setString(20, String.join(",", corsConfiguration.getAllowHeaders()));
-        statement.setString(21, String.join(",", corsConfiguration.getAllowMethods()));
+        statement.setBoolean(18, corsConfiguration.isEnabled());
+        statement.setString(19, String.join(",", corsConfiguration.getAllowOrigins()));
+        statement.setBoolean(20, corsConfiguration.isAllowCredentials());
+        statement.setString(21, String.join(",", corsConfiguration.getAllowHeaders()));
+        statement.setString(22, String.join(",", corsConfiguration.getAllowMethods()));
 
-        statement.setInt(22, getApiTypeId(connection, ApiType.STANDARD));
-        statement.setString(23, api.getCreatedBy());
-        statement.setTimestamp(24, Timestamp.valueOf(LocalDateTime.now()));
+        statement.setInt(23, getApiTypeId(connection, ApiType.STANDARD));
+        statement.setString(24, api.getCreatedBy());
         statement.setTimestamp(25, Timestamp.valueOf(LocalDateTime.now()));
-        statement.setString(26, api.getCopiedFromApiId());
-        statement.setString(27, api.getUpdatedBy());
-        statement.setString(28, APILCWorkflowStatus.APPROVED.toString());
+        statement.setTimestamp(26, Timestamp.valueOf(LocalDateTime.now()));
+        statement.setString(27, api.getCopiedFromApiId());
+        statement.setString(28, api.getUpdatedBy());
+        statement.setString(29, APILCWorkflowStatus.APPROVED.toString());
         statement.execute();
 
         if (API.Visibility.RESTRICTED == api.getVisibility()) {
@@ -718,10 +719,10 @@ public class ApiDAOImpl implements ApiDAO {
     @Override
     public void updateAPI(String apiID, API substituteAPI) throws APIMgtDAOException {
         final String query = "UPDATE AM_API SET CONTEXT = ?, IS_DEFAULT_VERSION = ?, DESCRIPTION = ?, VISIBILITY = ?, "
-                + "IS_RESPONSE_CACHED = ?, CACHE_TIMEOUT = ?, TECHNICAL_OWNER = ?, TECHNICAL_EMAIL = ?, " +
-                "BUSINESS_OWNER = ?, BUSINESS_EMAIL = ?, CORS_ENABLED = ?, CORS_ALLOW_ORIGINS = ?, " +
-                "CORS_ALLOW_CREDENTIALS = ?, CORS_ALLOW_HEADERS = ?, CORS_ALLOW_METHODS = ?, LAST_UPDATED_TIME = ?," +
-                "UPDATED_BY = ?, LC_WORKFLOW_STATUS=? WHERE UUID = ?";
+                + "IS_RESPONSE_CACHED = ?, HAS_OWN_GATEWAY = ?, CACHE_TIMEOUT = ?, TECHNICAL_OWNER = ?, " +
+                "TECHNICAL_EMAIL = ?, BUSINESS_OWNER = ?, BUSINESS_EMAIL = ?, CORS_ENABLED = ?, CORS_ALLOW_ORIGINS = ?,"
+                + "CORS_ALLOW_CREDENTIALS = ?, CORS_ALLOW_HEADERS = ?, CORS_ALLOW_METHODS = ?, LAST_UPDATED_TIME = ?,"
+                + "UPDATED_BY = ?, LC_WORKFLOW_STATUS=? WHERE UUID = ?";
 
         try (Connection connection = DAOUtil.getConnection();
              PreparedStatement statement = connection.prepareStatement(query)) {
@@ -732,25 +733,26 @@ public class ApiDAOImpl implements ApiDAO {
                 statement.setString(3, substituteAPI.getDescription());
                 statement.setString(4, substituteAPI.getVisibility().toString());
                 statement.setBoolean(5, substituteAPI.isResponseCachingEnabled());
-                statement.setInt(6, substituteAPI.getCacheTimeout());
+                statement.setBoolean(6, substituteAPI.hasOwnGateway());
+                statement.setInt(7, substituteAPI.getCacheTimeout());
 
                 BusinessInformation businessInformation = substituteAPI.getBusinessInformation();
-                statement.setString(7, businessInformation.getTechnicalOwner());
-                statement.setString(8, businessInformation.getTechnicalOwnerEmail());
-                statement.setString(9, businessInformation.getBusinessOwner());
-                statement.setString(10, businessInformation.getBusinessOwnerEmail());
+                statement.setString(8, businessInformation.getTechnicalOwner());
+                statement.setString(9, businessInformation.getTechnicalOwnerEmail());
+                statement.setString(10, businessInformation.getBusinessOwner());
+                statement.setString(11, businessInformation.getBusinessOwnerEmail());
 
                 CorsConfiguration corsConfiguration = substituteAPI.getCorsConfiguration();
-                statement.setBoolean(11, corsConfiguration.isEnabled());
-                statement.setString(12, String.join(",", corsConfiguration.getAllowOrigins()));
-                statement.setBoolean(13, corsConfiguration.isAllowCredentials());
-                statement.setString(14, String.join(",", corsConfiguration.getAllowHeaders()));
-                statement.setString(15, String.join(",", corsConfiguration.getAllowMethods()));
+                statement.setBoolean(12, corsConfiguration.isEnabled());
+                statement.setString(13, String.join(",", corsConfiguration.getAllowOrigins()));
+                statement.setBoolean(14, corsConfiguration.isAllowCredentials());
+                statement.setString(15, String.join(",", corsConfiguration.getAllowHeaders()));
+                statement.setString(16, String.join(",", corsConfiguration.getAllowMethods()));
 
-                statement.setTimestamp(16, Timestamp.valueOf(LocalDateTime.now()));
-                statement.setString(17, substituteAPI.getUpdatedBy());
-                statement.setString(18, substituteAPI.getWorkflowStatus());
-                statement.setString(19, apiID);
+                statement.setTimestamp(17, Timestamp.valueOf(LocalDateTime.now()));
+                statement.setString(18, substituteAPI.getUpdatedBy());
+                statement.setString(19, substituteAPI.getWorkflowStatus());
+                statement.setString(20, apiID);
 
                 statement.execute();
 
@@ -1471,8 +1473,8 @@ public class ApiDAOImpl implements ApiDAO {
                             .uriTemplate(resultSet.getString("URL_PATTERN")).authType(resultSet.getString
                                     ("AUTH_SCHEME"))
                             .httpVerb(resultSet.getString("HTTP_METHOD"))
-                            .policy(new APIPolicy(resultSet.getString("API_POLICY_ID"), "")).templateId
-                                    (resultSet.getString("OPERATION_ID")).build();
+                            .policy(new APIPolicy(resultSet.getString("API_POLICY_ID"), ""))
+                            .templateId(resultSet.getString("OPERATION_ID")).build();
                     uriTemplates.add(uriTemplate);
                 }
             }
@@ -1821,6 +1823,7 @@ public class ApiDAOImpl implements ApiDAO {
                         visibility(API.Visibility.valueOf(rs.getString("VISIBILITY"))).
                         visibleRoles(getVisibleRoles(connection, apiPrimaryKey)).
                         isResponseCachingEnabled(rs.getBoolean("IS_RESPONSE_CACHED")).
+                        setHasOwnGateway(rs.getBoolean("HAS_OWN_GATEWAY")).
                         cacheTimeout(rs.getInt("CACHE_TIMEOUT")).
                         tags(getTags(connection, apiPrimaryKey)).
                         labels(getLabelNames(connection, apiPrimaryKey)).

@@ -1,0 +1,29 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ${deploymentName}
+  namespace: ${namespace}
+  labels:
+  # should have the auto-generated label as the value
+    gateway: ${gatewayLabel}
+spec:
+  replicas: 3
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+  # should have the auto-generated label as the value
+        gateway: ${gatewayLabel}
+    spec:
+      containers:
+      - image: wso2apim-gateway-3.0.0-SNAPSHOT:3.0.0
+        name: ${containerName}
+        imagePullPolicy: Always
+        ports:
+        -
+          containerPort: 9090
+          protocol: "TCP"
+        -
+          containerPort: 9092
+          protocol: "TCP"

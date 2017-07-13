@@ -14,6 +14,7 @@ import org.wso2.msf4j.formparam.FileInfo;
 import org.wso2.msf4j.formparam.FormDataParam;
 import org.osgi.service.component.annotations.Component;
 
+import java.io.IOException;
 import java.io.InputStream;
 import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.Consumes;
@@ -85,7 +86,7 @@ public class ImportApi implements Microservice  {
 ,@ApiParam(value = "Media type of the entity in the body. Default is application/json. " ,required=true, defaultValue="application/json")@HeaderParam("Content-Type") String contentType
 ,@ApiParam(value = "If defined, updates the existing provider of each API with the specified provider. This is to cater scenarios where the current API provider does not exist in the environment that the API is imported to. ") @QueryParam("provider") String provider
 , @Context Request request)
-    throws NotFoundException {
+            throws NotFoundException, IOException {
         return delegate.importApisPut(fileInputStream, fileDetail,contentType,provider, request);
     }
 }

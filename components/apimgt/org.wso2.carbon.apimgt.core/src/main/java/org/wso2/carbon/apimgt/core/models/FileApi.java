@@ -50,6 +50,7 @@ public class FileApi {
     private Set<String> transport;
     private Set<String> tags;
     private Set<String> labels;
+    private boolean hasOwnGateway;
     private Set<String> policies;
     private API.Visibility visibility;
     private Set<String> visibleRoles;
@@ -68,7 +69,7 @@ public class FileApi {
     private String apiPermission;
     private String workflowStatus;
     private String apiPolicy;
-    private List<String> userSpecificApiPermissions;
+    private List<String> userSpecificApiPermissions;    
 
     public String getId() {
         return id;
@@ -255,6 +256,10 @@ public class FileApi {
         this.labels = labels;
     }
 
+    public void hasOwnGateway(boolean hasOwnGateway) {
+        this.hasOwnGateway = hasOwnGateway;
+    }
+
     public Set<String> getPolicies() {
         return policies;
     }
@@ -408,6 +413,10 @@ public class FileApi {
     }
 
     public FileApi() {
+    }
+
+    public boolean hasOwnGateway() {
+        return hasOwnGateway;
     }
 
     /**

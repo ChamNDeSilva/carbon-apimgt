@@ -32,6 +32,7 @@ import org.wso2.carbon.kernel.configprovider.CarbonConfigurationException;
 import org.wso2.carbon.kernel.configprovider.ConfigProvider;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 
 public class APIGatewayPublisherImplTestCaseIT {
@@ -70,7 +71,7 @@ public class APIGatewayPublisherImplTestCaseIT {
 
     @Test(description = "Publish API artifacts with API in defaultVerison")
     public void testPublishToGatewayWithDefaultVersion()
-            throws GatewayException {
+            throws GatewayException, IOException {
         String configString = SampleTestObjectCreator.createSampleGatewayConfig();
         API api = SampleTestObjectCreator.createUniqueAPI().gatewayConfig(configString).build();
         APIGatewayPublisherImpl apiGatewayPublisher = new APIGatewayPublisherImpl();

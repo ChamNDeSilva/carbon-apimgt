@@ -62,6 +62,7 @@ public final class API {
         isDefaultVersion = builder.isDefaultVersion;
         transport = builder.transport;
         tags = builder.tags;
+        hasOwnGateway = builder.hasOwnGateway;
         labels = builder.labels;
         policies = builder.policies;
         visibility = builder.visibility;
@@ -165,6 +166,10 @@ public final class API {
         return labels;
     }
 
+    public boolean hasOwnGateway() {
+        return hasOwnGateway;
+    }
+
     public Set<Policy> getPolicies() {
         return policies;
     }
@@ -256,6 +261,7 @@ public final class API {
                 Objects.equals(wsdlUri, api.wsdlUri) &&
                 Objects.equals(transport, api.transport) &&
                 Objects.equals(tags, api.tags) &&
+                Objects.equals(hasOwnGateway, api.hasOwnGateway) &&
                 Objects.equals(labels, api.labels) &&
                 visibility == api.visibility &&
                 Objects.equals(visibleRoles, api.visibleRoles) &&
@@ -276,8 +282,8 @@ public final class API {
     public int hashCode() {
         return Objects.hash(id, provider, name, version, context, description, lifeCycleStatus, lifecycleInstanceId,
                 endpoint, gatewayConfig, wsdlUri, isResponseCachingEnabled, cacheTimeout, isDefaultVersion,
-                transport, tags, labels, visibility, visibleRoles, businessInformation, corsConfiguration,
-                applicationId, createdTime, createdBy, updatedBy, lastUpdatedTime, lifecycleState,
+                transport, tags, hasOwnGateway, labels, visibility, visibleRoles, businessInformation,
+                corsConfiguration, applicationId, createdTime, createdBy, updatedBy, lastUpdatedTime, lifecycleState,
                 uriTemplates, copiedFromApiId, workflowStatus);
     }
 
@@ -305,6 +311,7 @@ public final class API {
     private final boolean isDefaultVersion;
     private final Set<String> transport;
     private final Set<String> tags;
+    private final boolean hasOwnGateway;
     private final Set<String> labels;
     private final Set<Policy> policies;
     private final Visibility visibility;
@@ -356,6 +363,7 @@ public final class API {
             isDefaultVersion = api.isDefaultVersion();
             transport = api.getTransport();
             tags = api.getTags();
+            hasOwnGateway = api.hasOwnGateway();
             labels = api.getLabels();
             policies = new HashSet<>();
             api.getPolicies().forEach(v -> policies.add(new SubscriptionPolicy(v)));
@@ -461,6 +469,10 @@ public final class API {
             return labels;
         }
 
+        public boolean hasOwnGateway() {
+            return hasOwnGateway;
+        }
+
         public Set<Policy> getPolicies() {
             return policies;
         }
@@ -497,6 +509,7 @@ public final class API {
         private Policy apiPolicy;
         private Set<String> transport = Collections.emptySet();
         private Set<String> tags = Collections.emptySet();
+        private boolean hasOwnGateway = false;
         private Set<String> labels = Collections.emptySet();
         private Set<Policy> policies = Collections.emptySet();
         private Visibility visibility = Visibility.PUBLIC;
@@ -537,6 +550,7 @@ public final class API {
             this.isDefaultVersion = copy.isDefaultVersion;
             this.transport = copy.transport;
             this.tags = copy.tags;
+            this.hasOwnGateway = copy.hasOwnGateway;
             this.labels = copy.labels;
             this.policies = copy.policies;
             this.visibility = copy.visibility;
@@ -790,7 +804,6 @@ public final class API {
             this.labels = labels;
             return this;
         }
-
         /**
          * Sets the {@code policies} and returns a reference to this APIBuilder so that the methods can be chained
          * together.
@@ -969,6 +982,17 @@ public final class API {
             this.workflowStatus = workflowStatus;
             return this;
         }
+        /**
+         * Sets the {@code hasOwnGateway} and returns a reference to this APIBuilder so that the methods
+         * can be chained together.
+         *
+         * @param hasOwnGateway the {@code hasOwnGateway} to set
+         * @return a reference to this APIBuilder
+         */
+        public APIBuilder setHasOwnGateway(boolean hasOwnGateway) {
+            this.hasOwnGateway = hasOwnGateway;
+            return this;
+        }
 
         /**
          * Returns a {@code API} built from the parameters previously set.
@@ -1078,6 +1102,8 @@ public final class API {
         public void setUserSpecificApiPermissions(List<String> userSpecificApiPermissions) {
             this.userSpecificApiPermissions = userSpecificApiPermissions;
         }
+
+
     }
 
     public void setCopiedFromApiId(String copiedFromApiId) {

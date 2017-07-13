@@ -130,7 +130,7 @@ public class APIPublisherImplTestCase {
     }
 
     @Test(description = "Test add api with production endpoint")
-    public void testAddApi() throws APIManagementException, LifecycleException {
+    public void testAddApi() throws APIManagementException, LifecycleException, IOException {
         /**
          * this test method verify the API Add with correct API object get invoked correctly
          */
@@ -162,7 +162,7 @@ public class APIPublisherImplTestCase {
     }
 
     @Test(description = "Test add api with sandbox endpoint")
-    public void testAddApiSandboxEndpoint() throws APIManagementException, LifecycleException {
+    public void testAddApiSandboxEndpoint() throws APIManagementException, LifecycleException, IOException {
         Map<String, Endpoint> endpointMap = new HashMap<>();
         Map<String, Endpoint> resourceEndpointMap = new HashMap<>();
         Map<String, UriTemplate> uriTemplateMap = new HashMap();
@@ -202,7 +202,7 @@ public class APIPublisherImplTestCase {
     }
 
     @Test(description = "Test add api when uri templates are empty")
-    public void testAddApiWithEmptyUriTemplate() throws APIManagementException, LifecycleException {
+    public void testAddApiWithEmptyUriTemplate() throws APIManagementException, LifecycleException, IOException {
         API.APIBuilder apiBuilder = SampleTestObjectCreator.createDefaultAPI().uriTemplates(new HashMap<>());
         ApiDAO apiDAO = Mockito.mock(ApiDAO.class);
         APILifecycleManager apiLifecycleManager = Mockito.mock(APILifecycleManager.class);
@@ -227,7 +227,8 @@ public class APIPublisherImplTestCase {
     }
 
     @Test(description = "Test add api with empty templateId and api definition")
-    public void testAddApiWithEmptyTemplateIdAndApiDefinition() throws APIManagementException, LifecycleException {
+    public void testAddApiWithEmptyTemplateIdAndApiDefinition() throws APIManagementException, LifecycleException,
+            IOException {
         Map<String, UriTemplate> uriTemplateMap = new HashMap();
         UriTemplate.UriTemplateBuilder uriTemplateBuilder = new UriTemplate.UriTemplateBuilder();
         uriTemplateBuilder.endpoint(Collections.emptyMap());
@@ -291,7 +292,7 @@ public class APIPublisherImplTestCase {
     }
 
     @Test(description = "Test add api with duplicate context", expectedExceptions = APIManagementException.class)
-    public void testAddApiWithDuplicateContext() throws APIManagementException, LifecycleException {
+    public void testAddApiWithDuplicateContext() throws APIManagementException, LifecycleException, IOException {
         /**
          * This method check by adding duplicate api context
          */
@@ -310,7 +311,7 @@ public class APIPublisherImplTestCase {
     }
 
     @Test(description = "Test add api with duplicate name", expectedExceptions = APIManagementException.class)
-    public void testAddApiWithDuplicateName() throws APIManagementException, LifecycleException {
+    public void testAddApiWithDuplicateName() throws APIManagementException, LifecycleException, IOException {
         ApiDAO apiDAO = Mockito.mock(ApiDAO.class);
         API.APIBuilder apiBuilder = SampleTestObjectCreator.createDefaultAPI();
         APILifecycleManager apiLifecycleManager = Mockito.mock(APILifecycleManager.class);
@@ -327,7 +328,7 @@ public class APIPublisherImplTestCase {
 
     @Test(description = "Test add api with API Lifecycle failed",
             expectedExceptions = {LifecycleException.class, APIManagementException.class})
-    public void testAddAPILifecycleFailure() throws LifecycleException, APIManagementException {
+    public void testAddAPILifecycleFailure() throws LifecycleException, APIManagementException, IOException {
         API.APIBuilder apiBuilder = SampleTestObjectCreator.createDefaultAPI();
         ApiDAO apiDAO = Mockito.mock(ApiDAO.class);
         APILifecycleManager apiLifecycleManager = Mockito.mock(APILifecycleManager.class);
@@ -341,7 +342,7 @@ public class APIPublisherImplTestCase {
     }
 
     @Test(description = "Test add api with restricted visibility")
-    public void testAddApiWithRestrictedVisibility() throws APIManagementException, LifecycleException {
+    public void testAddApiWithRestrictedVisibility() throws APIManagementException, LifecycleException, IOException {
         Set<String> visibleRoles = new HashSet<>();
         visibleRoles.add("admin");
         API.APIBuilder apiBuilder = SampleTestObjectCreator.createDefaultAPI()
@@ -2008,7 +2009,7 @@ public class APIPublisherImplTestCase {
     }
 
     @Test(description = "Test add api with Api Specific Endpoint", expectedExceptions = {APIManagementException.class})
-    public void testAddApiSpecificEndpoint() throws APIManagementException, LifecycleException {
+    public void testAddApiSpecificEndpoint() throws APIManagementException, LifecycleException, IOException {
         /**
          * this test method verify the API Add with correct API object get invoked correctly
          */
@@ -2045,7 +2046,7 @@ public class APIPublisherImplTestCase {
     }
 
     @Test(description = "Test add api with Api Specific Endpoint", expectedExceptions = {APIManagementException.class})
-    public void testAddAlreadyAddedEndpointToApi() throws APIManagementException, LifecycleException {
+    public void testAddAlreadyAddedEndpointToApi() throws APIManagementException, LifecycleException, IOException {
         /**
          * this test method verify the API Add with correct API object get invoked correctly
          */
@@ -2070,13 +2071,15 @@ public class APIPublisherImplTestCase {
         Mockito.when(apiDAO.isAPINameExists(apiBuilder.getName(), USER)).thenReturn(false);
         apiPublisher.addAPI(apiBuilder);
         Mockito.verify(apiDAO, Mockito.times(1)).addAPI(apiBuilder.build());
-        Mockito.verify(apiLifecycleManager, Mockito.times(1)).addLifecycle(APIMgtConstants.API_LIFECYCLE, USER);
+        Mockito.verify(apiLifecycleManager, Mockito.times(1)).addLifecycle(
+                APIMgtConstants.API_LIFECYCLE, USER);
         Mockito.verify(apiDAO, Mockito.times(1)).getEndpointByName(apiEndpoint.getName());
         Mockito.verify(apiDAO, Mockito.times(1)).isAPINameExists(apiBuilder.getName(), USER);
     }
 
     @Test(description = "Test add api with Api Specific Endpoint", expectedExceptions = {APIManagementException.class})
-    public void testApiLevelEndpointAddWhileDbGetError() throws APIManagementException, LifecycleException {
+    public void testApiLevelEndpointAddWhileDbGetError() throws APIManagementException, LifecycleException,
+            IOException {
         /**
          * this test method verify the API Add with correct API object get invoked correctly
          */
@@ -2106,7 +2109,7 @@ public class APIPublisherImplTestCase {
 
 
     @Test(description = "Test add api with Api Specific Endpoint")
-    public void testAddResourceLevelEndpoint() throws APIManagementException, LifecycleException {
+    public void testAddResourceLevelEndpoint() throws APIManagementException, LifecycleException, IOException {
         /**
          * this test method verify the API Add with correct API object get invoked correctly
          */
@@ -2159,7 +2162,7 @@ public class APIPublisherImplTestCase {
 
     @Test(description = "Test add api with Api Specific Endpoint", expectedExceptions = {APIManagementException.class})
     public void testAddResourceLevelEndpointWhileResourceEndpointAlreadyExists() throws APIManagementException,
-            LifecycleException {
+            LifecycleException, IOException {
         /**
          * this test method verify the API Add with correct API object get invoked correctly
          */
@@ -2202,7 +2205,7 @@ public class APIPublisherImplTestCase {
 
     @Test(description = "Test add api with Api Specific Endpoint", expectedExceptions = {APIManagementException.class})
     public void testAddResourceLevelEndpointWhileResourceEndpointAlreadyExistsWhileDatabaseFailure() throws
-            APIManagementException, LifecycleException {
+            APIManagementException, LifecycleException, IOException {
         /**
          * this test method verify the API Add with correct API object get invoked correctly
          */
@@ -2245,7 +2248,7 @@ public class APIPublisherImplTestCase {
 
     @Test(description = "Test add api with Api Specific Endpoint")
     public void testResourceProductionAndSandboxEndpoint() throws
-            APIManagementException, LifecycleException {
+            APIManagementException, LifecycleException, IOException {
         /**
          * this test method verify the API Add with correct API object get invoked correctly
          */

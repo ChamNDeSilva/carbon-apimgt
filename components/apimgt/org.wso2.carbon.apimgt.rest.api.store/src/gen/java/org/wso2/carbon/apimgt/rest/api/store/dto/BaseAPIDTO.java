@@ -40,6 +40,9 @@ public class BaseAPIDTO   {
   @JsonProperty("transport")
   private List<String> transport = new ArrayList<String>();
 
+  @JsonProperty("perApiPerGatewayEnabled")
+  private Boolean perApiPerGatewayEnabled = false;
+
   @JsonProperty("labels")
   private List<String> labels = new ArrayList<String>();
 
@@ -226,6 +229,24 @@ public class BaseAPIDTO   {
     this.transport = transport;
   }
 
+  public BaseAPIDTO perApiPerGatewayEnabled(Boolean perApiPerGatewayEnabled) {
+    this.perApiPerGatewayEnabled = perApiPerGatewayEnabled;
+    return this;
+  }
+
+   /**
+   * Get perApiPerGatewayEnabled
+   * @return perApiPerGatewayEnabled
+  **/
+  @ApiModelProperty(value = "")
+  public Boolean getPerApiPerGatewayEnabled() {
+    return perApiPerGatewayEnabled;
+  }
+
+  public void setPerApiPerGatewayEnabled(Boolean perApiPerGatewayEnabled) {
+    this.perApiPerGatewayEnabled = perApiPerGatewayEnabled;
+  }
+
   public BaseAPIDTO labels(List<String> labels) {
     this.labels = labels;
     return this;
@@ -285,13 +306,14 @@ public class BaseAPIDTO   {
         Objects.equals(this.provider, baseAPI.provider) &&
         Objects.equals(this.apiDefinition, baseAPI.apiDefinition) &&
         Objects.equals(this.transport, baseAPI.transport) &&
+        Objects.equals(this.perApiPerGatewayEnabled, baseAPI.perApiPerGatewayEnabled) &&
         Objects.equals(this.labels, baseAPI.labels) &&
         Objects.equals(this.type, baseAPI.type);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(id, name, description, context, version, provider, apiDefinition, transport, labels, type);
+    return Objects.hash(id, name, description, context, version, provider, apiDefinition, transport, perApiPerGatewayEnabled, labels, type);
   }
 
   @Override
@@ -307,6 +329,7 @@ public class BaseAPIDTO   {
     sb.append("    provider: ").append(toIndentedString(provider)).append("\n");
     sb.append("    apiDefinition: ").append(toIndentedString(apiDefinition)).append("\n");
     sb.append("    transport: ").append(toIndentedString(transport)).append("\n");
+    sb.append("    perApiPerGatewayEnabled: ").append(toIndentedString(perApiPerGatewayEnabled)).append("\n");
     sb.append("    labels: ").append(toIndentedString(labels)).append("\n");
     sb.append("    type: ").append(toIndentedString(type)).append("\n");
     sb.append("}");
