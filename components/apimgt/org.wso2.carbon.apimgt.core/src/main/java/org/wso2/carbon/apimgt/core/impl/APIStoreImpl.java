@@ -105,14 +105,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Implementation of API Store operations.
@@ -930,6 +923,7 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
 
         if (!isApiNameExist(apiBuilder.getName()) && !isContextExist(apiBuilder.getContext())) {
             setUriTemplates(apiBuilder);
+            // todo : there is a gatewayConfig generation source
             setGatewayDefinitionSource(apiBuilder);
 
             if (StringUtils.isEmpty(apiBuilder.getApiDefinition())) {
@@ -941,6 +935,7 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
                 APIUtils.validate(createdAPI);
 
                 //publishing config to gateway
+                // todo : need to generate the label before this if hasOwnGateway
                 gateway.addCompositeAPI(createdAPI);
 
                 getApiDAO().addApplicationAssociatedAPI(createdAPI);
@@ -1049,6 +1044,31 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
 
             APIUtils.verifyValidityOfApiUpdate(apiBuilder, originalAPI);
 
+            // changing hasOwnGateway from false to true
+            if (apiBuilder.hasOwnGateway() && !originalAPI.hasOwnGateway()) {
+                // create a label
+                List<Label> labelList = new ArrayList<>();
+                Label autoGenLabel = new Label.Builder().
+                        id(UUID.randomUUID().toString()).
+                        name("PERAPIGW-" + apiBuilder.getId()).
+                        accessUrls(null).build();
+                labelList.add(autoGenLabel);
+
+                //Add to the db
+                getLabelDAO().addLabels(labelList);
+
+                // Deleting the existing labels from Label Mapping and adding the new once happen in DAO method.
+                //add to the API
+                Set<String> labelSet = new HashSet<>();
+                labelSet.add("PERAPIGW-" + apiBuilder.getId());
+                apiBuilder.labels(labelSet);
+
+            } else if (!apiBuilder.hasOwnGateway() && originalAPI.hasOwnGateway()) {
+                //delete the previous label created.
+                getLabelDAO().deleteLabel("PERAPIGW-" + apiBuilder.getId());
+                //cleaning up the gateway and API will happen after adding to the topic
+            }
+
             try {
                 String updatedSwagger = apiDefinitionFromSwagger20.generateSwaggerFromResources(apiBuilder);
                 InputStream gatewayConfig = getApiDAO().getCompositeAPIGatewayConfig(apiBuilder.getId());
@@ -1069,9 +1089,14 @@ public class APIStoreImpl extends AbstractAPIManager implements APIStore, APIMOb
                                 .API_ALREADY_EXISTS);
                     }
                 }
+                //done : auto-generate the label before this.
+
+                // introduced an updateCompositeAPI method to the Gateway because we need to compare the value of
+                // hasOwnGateway of original API and the new API to remove the CMS gateway and to delete labels if it
+                // is false in update operation.
 
                 //publishing config to gateway
-                gateway.addCompositeAPI(api);
+                gateway.updateCompositeAPI(api, originalAPI.hasOwnGateway());
 
                 getApiDAO().updateApiDefinition(api.getId(), updatedSwagger, api.getUpdatedBy());
                 getApiDAO().updateCompositeAPIGatewayConfig(api.getId(),

@@ -53,6 +53,15 @@ public interface APIGateway {
     void addCompositeAPI(CompositeAPI api) throws GatewayException;
 
     /**
+     * Update CompositeAPI in gateway
+     *
+     * @param api CompositeAPI artifact
+     * @param originalApiHadOwnGateway original API had own gateway
+     * @throws GatewayException If there is a failure while adding CompositeAPI to gateway
+     */
+    void updateCompositeAPI(CompositeAPI api, boolean originalApiHadOwnGateway) throws GatewayException;
+
+    /**
      * Update API in gateway
      *
      * @param api API artifact

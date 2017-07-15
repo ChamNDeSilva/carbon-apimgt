@@ -37,6 +37,7 @@ import org.wso2.carbon.apimgt.core.api.GatewaySourceGenerator;
 import org.wso2.carbon.apimgt.core.api.IdentityProvider;
 import org.wso2.carbon.apimgt.core.api.WorkflowExecutor;
 import org.wso2.carbon.apimgt.core.api.WorkflowResponse;
+import org.wso2.carbon.apimgt.core.configuration.models.APIMConfigurations;
 import org.wso2.carbon.apimgt.core.dao.APISubscriptionDAO;
 import org.wso2.carbon.apimgt.core.dao.ApiDAO;
 import org.wso2.carbon.apimgt.core.dao.ApplicationDAO;
@@ -105,6 +106,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
 
     // Map to store observers, which observe APIPublisher events
     private Map<String, EventObserver> eventObservers = new HashMap<>();
+    APIMConfigurations apimConfigurations = new APIMConfigurations();
 
     public APIPublisherImpl(String username, IdentityProvider idp, ApiDAO apiDAO, ApplicationDAO applicationDAO,
                             APISubscriptionDAO apiSubscriptionDAO, PolicyDAO policyDAO, APILifecycleManager
@@ -191,7 +193,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
     }
 
     @Override
-    public String getDefaultVersion(String apiid) throws APIManagementException {
+    public String getDefaultVersion(String apiId) throws APIManagementException {
         return null;
     }
 
@@ -480,7 +482,6 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                     String updatedSwagger = apiDefinitionFromSwagger20.generateSwaggerFromResources(apiBuilder);
 
                     // changing hasOwnGateway from false to true
-                    // todo: check whether we can compare the set with a  String
                     if (apiBuilder.hasOwnGateway() && !originalAPI.hasOwnGateway()) {
                         // create a label
                         List<Label> labelList = new ArrayList<>();
@@ -491,7 +492,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                         labelList.add(autoGenLabel);
                         //Add to the db
                         getLabelDAO().addLabels(labelList);
-                        // Deleting the label is not required. As mapping for the API is getting updated later.
+                        // Deleting the existing labels from Label Mapping and adding the new once happen in DAO method.
                         //add to the API
                         Set<String> labelSet = new HashSet<>();
                         labelSet.add("PERAPIGW-" + apiBuilder.getId());
@@ -687,6 +688,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                 API.APIBuilder apiBuilder = new API.APIBuilder(api);
                 apiBuilder.lastUpdatedTime(LocalDateTime.now());
                 apiBuilder.updatedBy(getUsername());
+                // This is the current state of API
                 LifecycleState currentState = getApiLifecycleManager().getLifecycleDataForState(apiBuilder
                         .getLifecycleInstanceId(), apiBuilder.getLifeCycleStatus());
                 apiBuilder.lifecycleState(currentState);
@@ -698,7 +700,8 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                 WorkflowExecutor executor = WorkflowExecutorFactory.getInstance()
                         .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_API_STATE);
                 APIStateChangeWorkflow workflow = new APIStateChangeWorkflow(getApiDAO(), getApiSubscriptionDAO(),
-                        getWorkflowDAO(), getApiLifecycleManager(), getApiGateway());
+                        getWorkflowDAO(), getApiLifecycleManager(), getApiGateway(), originalAPI.hasOwnGateway(),
+                        apimConfigurations);
                 workflow.setApiName(originalAPI.getName());
                 workflow.setApiProvider(originalAPI.getProvider());
                 workflow.setApiVersion(originalAPI.getVersion());
@@ -716,6 +719,15 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                 workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_CUR_STATE, currentState.getState());
                 workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_TARGET_STATE, status);
                 workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_LC_INVOKER, getUsername());
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_NAME, originalAPI.getId());
+
+                if (originalAPI.hasOwnGateway()) {
+                    // then we have only one label
+                    workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_AUTOGEN_LABEL,
+                            originalAPI.getLabels().toArray()[0].toString());
+                }
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_HAS_OWN_GATEWAY,
+                        String.valueOf(originalAPI.hasOwnGateway()));
                 workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_LAST_UPTIME,
                         originalAPI.getLastUpdatedTime().toString());
                 String workflowDescription = "API state change workflow for " + workflow.getApiName() + ":"

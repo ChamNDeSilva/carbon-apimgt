@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.wso2.carbon.apimgt.core.api.APIStore;
 import org.wso2.carbon.apimgt.core.dao.ApiType;
+import org.wso2.carbon.apimgt.core.dao.LabelDAO;
 import org.wso2.carbon.apimgt.core.exception.APIManagementException;
 import org.wso2.carbon.apimgt.core.exception.APIMgtResourceAlreadyExistsException;
 import org.wso2.carbon.apimgt.core.exception.APIMgtResourceNotFoundException;
@@ -200,7 +201,9 @@ public class CompositeApisApiServiceImpl extends CompositeApisApiService {
             apiStore.updateCompositeApi(api);
 
             String newFingerprint = compositeApisApiIdGetFingerprint(apiId, null, null, null, request);
-            CompositeAPIDTO apidto = CompositeAPIMappingUtil.toCompositeAPIDTO(apiStore.getCompositeAPIbyId(apiId));
+            CompositeAPI compositeAPI = apiStore.getCompositeAPIbyId(apiId);
+
+            CompositeAPIDTO apidto = CompositeAPIMappingUtil.toCompositeAPIDTO(compositeAPI);
             return Response.ok().header(HttpHeaders.ETAG, "\"" + newFingerprint + "\"").entity(apidto).build();
         } catch (APIManagementException e) {
             HashMap<String, String> paramList = new HashMap<String, String>();

@@ -80,10 +80,6 @@ public class APIGatewayPublisherImpl implements APIGateway {
         publishToPublisherTopic(apiCreateEvent);
 
         //No need to create the gateway as this is in created state.
-        /*if (api.hasOwnGateway()) {
-            // if hasOwnGateway is true, then the api should have only one label.
-            createContainerBasedGateway(api.getId(), api.getLabels().toArray()[0].toString(), apimConfigurations);
-        }*/
         if (log.isDebugEnabled()) {
             log.debug("API : " + api.getName() + " created event has been successfully published to broker");
         }
@@ -102,8 +98,33 @@ public class APIGatewayPublisherImpl implements APIGateway {
         gatewayDTO.setApiSummary(apiSummary);
         publishToPublisherTopic(gatewayDTO);
 
-        //todo : check feature is enabled, create gateway and add the API
+        if (api.hasOwnGateway()) {
+            createContainerBasedGateway(api.getId(), api.getLabels().toArray()[0].toString(),apimConfigurations);
+        }
+    }
+    @Override
+    public void updateCompositeAPI(CompositeAPI api, boolean originalApiHadOwnGateway) throws GatewayException {
 
+        // build the message to send
+        APIEvent gatewayDTO = new APIEvent(APIMgtConstants.GatewayEventTypes.API_CREATE);
+        gatewayDTO.setLabels(api.getLabels());
+        APISummary apiSummary = new APISummary();
+        apiSummary.setName(api.getName());
+        apiSummary.setVersion(api.getVersion());
+        apiSummary.setContext(api.getContext());
+        gatewayDTO.setApiSummary(apiSummary);
+        publishToPublisherTopic(gatewayDTO);
+
+        //Since Lifecycle are not involved with Composite APIs, removed lifeCycle check.
+        if (!originalApiHadOwnGateway && api.hasOwnGateway()) {
+            // label is created beforehand.
+            createContainerBasedGateway(api.getId(), api.getLabels().toArray()[0].toString(), apimConfigurations);
+        }
+        if (originalApiHadOwnGateway && !api.hasOwnGateway()) {
+            // label is deleted beforehand.
+            // to do this for deployment name and the service name we should use a convention
+            removeContainerBasedGateway("PERAPIGW-" + api.getId());
+        }
     }
 
     @Override
@@ -115,15 +136,15 @@ public class APIGatewayPublisherImpl implements APIGateway {
         apiUpdateEvent.setApiSummary(toAPISummary(api));
         publishToPublisherTopic(apiUpdateEvent);
 
-        // If API is a published or a prototyped API
+        // If API is a published,prototyped or a deprecated API
         if (api.getLifeCycleStatus().equalsIgnoreCase(APIStatus.PUBLISHED.getStatus()) ||
-                api.getLifeCycleStatus().equalsIgnoreCase(APIStatus.PROTOTYPED.getStatus())) {
+                api.getLifeCycleStatus().equalsIgnoreCase(APIStatus.PROTOTYPED.getStatus()) ||
+                api.getLifeCycleStatus().equalsIgnoreCase(APIStatus.DEPRECATED.getStatus())) {
 
             if (!originalApiHadOwnGateway && api.hasOwnGateway()) {
                 // label is created beforehand.
                 createContainerBasedGateway(api.getId(), api.getLabels().toArray()[0].toString(), apimConfigurations);
             }
-
             if (originalApiHadOwnGateway && !api.hasOwnGateway()) {
                 // label is deleted beforehand.
                 // to do this for deployment name and the service name we should use a convention
@@ -146,6 +167,11 @@ public class APIGatewayPublisherImpl implements APIGateway {
         if (log.isDebugEnabled()) {
             log.debug("API : " + api.getName() + " deleted event has been successfully published to broker");
         }
+        if (api.hasOwnGateway()) {
+            // Delete the Gateway - check how we can assume that we complete the deletion
+            removeContainerBasedGateway(api.getLabels().toArray()[0].toString());
+
+        }
     }
 
     @Override
@@ -159,6 +185,11 @@ public class APIGatewayPublisherImpl implements APIGateway {
         apiSummary.setContext(api.getContext());
         gatewayDTO.setApiSummary(apiSummary);
         publishToPublisherTopic(gatewayDTO);
+
+        if (api.hasOwnGateway()) {
+            // Delete the Gateway  - check how we can assume that we complete the deletion
+            removeContainerBasedGateway(api.getLabels().toArray()[0].toString());
+        }
 
     }
 
@@ -459,11 +490,10 @@ public class APIGatewayPublisherImpl implements APIGateway {
      GatewayException {
 
         String[] gatewayUrls;
-        APIPublisher publisher = null;
          ContainerBasedGatewayTemplateBuilder builder = new ContainerBasedGatewayTemplateBuilder();
          KubernetesGatewayImpl kubernetesGateway = new KubernetesGatewayImpl();
 
-        // todo : auto-generate the api-label
+        // done : auto-generate the api-label
          // create the name for the service, deployment and container
          Map<String , String> templateValues = new HashMap<>();
 
@@ -480,15 +510,17 @@ public class APIGatewayPublisherImpl implements APIGateway {
          kubernetesGateway.createKubernetesDeployment(builder.getGatewayDeploymentTemplate(templateValues),
                  templateValues.get("deploymentName"), templateValues.get("namespace"));
 
-         //todo : create the config String - use the gateway URLs returned above
-         String configString = null;
          // todo : need to update the labels as well with the access URLs
-         //publisher.updateApiGatewayConfig(apiId, configString);
+         // todo : Check whether we can do this at the creation stage of labels - After testing kube
+
+         //todo : update gatewayConfig is not needed as it does not include access details. - check
+
     }
 
     @Override
     public void removeContainerBasedGateway(String label) {
-        // delete the service and the deployment created
+        // todo : delete the service and the deployment created
+
     }
 
 

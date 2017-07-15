@@ -54,6 +54,7 @@ public class CompositeAPI {
     private final HashMap permissionMap;
     private final String apiPermission;
     private final String workflowStatus;
+    private final boolean hasOwnGateway;
 
     private CompositeAPI(Builder builder) {
         id = builder.id;
@@ -76,6 +77,7 @@ public class CompositeAPI {
         permissionMap = builder.permissionMap;
         apiPermission = builder.apiPermission;
         workflowStatus = builder.workflowStatus;
+        hasOwnGateway = builder.hasOwnGateway;
     }
 
 
@@ -159,6 +161,10 @@ public class CompositeAPI {
         return workflowStatus;
     }
 
+    public boolean hasOwnGateway() {
+        return hasOwnGateway;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -187,14 +193,15 @@ public class CompositeAPI {
                 Objects.equals(apiDefinition, that.apiDefinition) &&
                 Objects.equals(permissionMap, that.permissionMap) &&
                 Objects.equals(apiPermission, that.apiPermission) &&
-                Objects.equals(workflowStatus, that.workflowStatus);
+                Objects.equals(workflowStatus, that.workflowStatus) &&
+                Objects.equals(hasOwnGateway, that.hasOwnGateway);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, provider, name, version, context, description, gatewayConfig, transport, labels,
                 applicationId, createdTime, createdBy, updatedBy, lastUpdatedTime, uriTemplates, copiedFromApiId,
-                apiDefinition, permissionMap, apiPermission, workflowStatus);
+                apiDefinition, permissionMap, apiPermission, workflowStatus, hasOwnGateway);
     }
 
     /**
@@ -221,6 +228,7 @@ public class CompositeAPI {
         private HashMap permissionMap;
         private String apiPermission;
         private String workflowStatus;
+        private boolean hasOwnGateway;
 
         public Builder() {
         }
@@ -246,6 +254,7 @@ public class CompositeAPI {
             this.permissionMap = copy.permissionMap;
             this.apiPermission = copy.apiPermission;
             this.workflowStatus = copy.workflowStatus;
+            this.hasOwnGateway = copy.hasOwnGateway;
         }
 
         /**
@@ -482,6 +491,16 @@ public class CompositeAPI {
             this.workflowStatus = workflowStatus;
             return this;
         }
+        /**
+         * Sets the {@code hasOwnGateway} and returns a reference to Builder so that methods can be chained together.
+         *
+         * @param hasOwnGateway the {@code hasOwnGateway} to set
+         * @return a reference to this Builder
+         */
+        public Builder setHasOwnGateway(boolean hasOwnGateway) {
+            this.hasOwnGateway = hasOwnGateway;
+            return this;
+        }
 
         /**
          * Returns a {@code CompositeAPI} built from the parameters previously set.
@@ -570,6 +589,10 @@ public class CompositeAPI {
 
         public String getWorkflowStatus() {
             return workflowStatus;
+        }
+
+        public boolean hasOwnGateway() {
+            return hasOwnGateway;
         }
     }
 }
