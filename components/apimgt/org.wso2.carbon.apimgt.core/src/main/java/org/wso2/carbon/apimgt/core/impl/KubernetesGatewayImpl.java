@@ -90,22 +90,18 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
         String[] accessURLs = new String[0];
         
         if (masterURL != null) {
-            
-            KubernetesClient kubernetesClient;
-            OpenShiftClient client = null;
-            List<HasMetadata> resources = null;
+
+            List<HasMetadata> resources;
+
+            Config config = new ConfigBuilder().build();
+            KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
             String fileLocation = writeTemplateToFile(serviceTemplate, serviceName);
 
-            try (FileInputStream fileInputStream = new FileInputStream(fileLocation)) {
+            try (FileInputStream fileInputStream = new FileInputStream(fileLocation);
+                 OpenShiftClient client = kubernetesClient.adapt(OpenShiftClient.class)) {
 
-                Config config = new ConfigBuilder().build();
-                kubernetesClient = new DefaultKubernetesClient(config);
-                client = kubernetesClient.adapt(OpenShiftClient.class);
-
-               resources =
-                        client.load(fileInputStream).get();
+               resources = client.load(fileInputStream).get();
                if (resources.get(0) == null) {
-                   client.close();
                    throw new GatewayException("No resources loaded from file: " + fileLocation,
                             ExceptionCodes.NO_RESOURCE_LOADED_FROM_FILE);
 
@@ -113,29 +109,26 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
                HasMetadata resource = resources.get(0);
                if (resource instanceof Service) {
 
-             //      log.info("Creating Service in namespace " + namespace);
                    Service result = client.services().inNamespace(namespace).create((Service) resource);
-              //     log.info("Created Service : " + result.getMetadata().getName());
+                   log.info("Created Service : " + result.getMetadata().getName());
 
                     
                    //todo : return the Https and https URLs form here as an array.
+                   // todo : check how we can get these access URLs at label creation.
                    //mock
                    accessURLs[0] = "https://mygateway:9092";
                    accessURLs[1] = "http://mygateway:9090";
 
                } else {
-              //     log.error("Loaded resource is not a Service! " + resource);
                    throw new GatewayException("Loaded Resource is not a Kubernetes Service ! " + resource,
                             ExceptionCodes.LOADED_RESOURCE_IS_NOT_VALID);
 
                }
             } catch (KubernetesClientException | FileNotFoundException e) {
-
                 throw new GatewayException("Client cannot load the file for service " + serviceName + "as an " +
                         "InputStream", ExceptionCodes.TEMPLATE_LOAD_EXCEPTION);
 
             } catch (IOException e) {
-             //   log.error("Error occurred while writing the template to the file " + e);
                 throw new GatewayException("Error occurred while writing the template to the file",
                         ExceptionCodes.TEMPLATE_FILE_EXCEPTION);
             }
@@ -146,19 +139,15 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
     @Override
     public void createKubernetesDeployment(String deploymentTemplate, String deploymentName, String namespace)
             throws GatewayException {
-        //String fileLocation = null;
-
 
         if (masterURL != null) {
-            KubernetesClient kubernetesClient;
+            Config config = new ConfigBuilder().build();
+            KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
             String fileLocation = writeTemplateToFile(deploymentTemplate, deploymentName);
-            OpenShiftClient client = null;
-            List<HasMetadata> resources = null;
+            List<HasMetadata> resources;
 
-            try (FileInputStream fileInputStream = new FileInputStream(fileLocation)) {
-                Config config = new ConfigBuilder().build();
-                kubernetesClient = new DefaultKubernetesClient(config);
-                client = kubernetesClient.adapt(OpenShiftClient.class);
+            try (FileInputStream fileInputStream = new FileInputStream(fileLocation);
+                 OpenShiftClient client = kubernetesClient.adapt(OpenShiftClient.class)) {
 
                  resources = client.load(fileInputStream).get();
 
@@ -169,11 +158,9 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
                 }
                 HasMetadata resource = resources.get(0);
                 if (resource instanceof Deployment) {
-
-
                     Deployment result =
                             client.extensions().deployments().inNamespace(namespace).create((Deployment) resource);
-                 //   log.info("Created deployment : ", result.getMetadata().getName());
+                    log.info("Created deployment : ", result.getMetadata().getName());
 
                 } else {
                     throw new GatewayException("Loaded Resource is not a Kubernetes Deployment ! " + resource,
@@ -188,14 +175,33 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
                 log.error("No File Found in " + fileLocation + "  :  " + e);
                 throw new GatewayException("No File Found in  : " + fileLocation,
                         ExceptionCodes.NO_RESOURCE_LOADED_FROM_FILE);
-            }  finally {
-                if (client != null) {
-
-                    client.close();
-
-                }
             }
         }
+    }
 
+    @Override
+    public void removeKubernetesGateway(String label) throws GatewayException {
+
+        if (masterURL != null) {
+            Config config = new ConfigBuilder().build();
+            KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
+
+            try (OpenShiftClient client = kubernetesClient.adapt(OpenShiftClient.class)) {
+
+                // Deleting the Service----------------
+                // cannot get the service by namespace as at this time user may have changed the namespace in configs.
+                // Therefore deleting it checking from all namespace
+                client.services().inAnyNamespace().withLabel(label).delete();
+
+                //Deleting Pods
+                client.pods().inAnyNamespace().withLabel(label).delete();
+
+                log.info("Completed Deleting the Gateway from Container");
+            } catch (KubernetesClientException e) {
+                throw new GatewayException("Error in Removing the Container based Gateway Resources",
+                        ExceptionCodes.CONTAINER_GATEWAY_REMOVAL_FAILED);
+
+            }
+        }
     }
 }

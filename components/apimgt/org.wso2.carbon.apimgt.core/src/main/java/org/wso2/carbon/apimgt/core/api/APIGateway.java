@@ -234,6 +234,6 @@ public interface APIGateway {
      *
      * @param label auto-generated label of the original API
      */
-    void removeContainerBasedGateway(String label);
+    void removeContainerBasedGateway(String label) throws GatewayException;
 
 }

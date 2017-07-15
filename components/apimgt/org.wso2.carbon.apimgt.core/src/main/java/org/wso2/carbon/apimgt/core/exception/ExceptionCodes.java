@@ -183,7 +183,9 @@ public enum ExceptionCodes implements ErrorHandler {
     TEMPLATE_LOAD_EXCEPTION(90080, "Error in loading the template file by client as an InputStream", 500,
             " Error in loading the FileInputStream by client"),
     CONTENT_ENCODING_NOT_SUPPORTED(90081, "Content of the resource is not supporting UTF-8 Encoding", 500,
-            "Content is not supported UTF-8 Encoding");
+            "Content is not supported UTF-8 Encoding"),
+    CONTAINER_GATEWAY_REMOVAL_FAILED(90082, "Cannot complete removing Container Based Gateway", 404,
+                                           "Error in deleting the Container based Gateway");
 
 
     private final long errorCode;

@@ -518,9 +518,10 @@ public class APIGatewayPublisherImpl implements APIGateway {
     }
 
     @Override
-    public void removeContainerBasedGateway(String label) {
-        // todo : delete the service and the deployment created
+    public void removeContainerBasedGateway(String label) throws GatewayException {
 
+        KubernetesGatewayImpl kubernetesGateway = new KubernetesGatewayImpl();
+        kubernetesGateway.removeKubernetesGateway(label);
     }
 
 

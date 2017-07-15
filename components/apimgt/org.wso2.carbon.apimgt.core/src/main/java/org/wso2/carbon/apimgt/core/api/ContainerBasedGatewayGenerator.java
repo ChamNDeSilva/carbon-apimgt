@@ -55,6 +55,19 @@ public interface ContainerBasedGatewayGenerator {
     void createKubernetesDeployment(String gatewayDeploymentTemplate, String deploymentName, String namespace)
             throws GatewayException;
 
+    /**
+     * Remove the existing gateway from Container Management System
+     *
+     * @param label   auto-generated label of gateway
+     * @throws GatewayException   If there is a failure to update API in gateway
+     */
+    void removeKubernetesGateway(String label) throws GatewayException;
+
+
+
+
+
+
 }
 
 
