@@ -21,7 +21,6 @@ package org.wso2.carbon.apimgt.core.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.wso2.carbon.apimgt.core.api.APIGateway;
-import org.wso2.carbon.apimgt.core.api.APIPublisher;
 import org.wso2.carbon.apimgt.core.configuration.models.APIMConfigurations;
 import org.wso2.carbon.apimgt.core.exception.GatewayException;
 import org.wso2.carbon.apimgt.core.internal.ServiceReferenceHolder;
@@ -99,7 +98,7 @@ public class APIGatewayPublisherImpl implements APIGateway {
         publishToPublisherTopic(gatewayDTO);
 
         if (api.hasOwnGateway()) {
-            createContainerBasedGateway(api.getId(), api.getLabels().toArray()[0].toString(),apimConfigurations);
+            createContainerBasedGateway(api.getId(), api.getLabels().toArray()[0].toString(), apimConfigurations);
         }
     }
     @Override
@@ -489,7 +488,7 @@ public class APIGatewayPublisherImpl implements APIGateway {
     public void createContainerBasedGateway(String apiId, String label, APIMConfigurations apimConfigurations) throws
      GatewayException {
 
-        String[] gatewayUrls;
+        //String[] gatewayUrls;
          ContainerBasedGatewayTemplateBuilder builder = new ContainerBasedGatewayTemplateBuilder();
          KubernetesGatewayImpl kubernetesGateway = new KubernetesGatewayImpl();
 
@@ -505,7 +504,7 @@ public class APIGatewayPublisherImpl implements APIGateway {
          templateValues.put("image", apimConfigurations.getContainerGatewayConfigs().getImage());
 
          //This should return the access URL
-         gatewayUrls = kubernetesGateway.createKubernetesService(builder.getGatewayServiceTemplate(templateValues),
+         kubernetesGateway.createKubernetesService(builder.getGatewayServiceTemplate(templateValues),
                  templateValues.get("serviceName"), templateValues.get("namespace"));
          kubernetesGateway.createKubernetesDeployment(builder.getGatewayDeploymentTemplate(templateValues),
                  templateValues.get("deploymentName"), templateValues.get("namespace"));

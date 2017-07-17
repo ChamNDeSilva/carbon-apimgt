@@ -72,15 +72,15 @@ public class APIStateChangeWorkflow extends Workflow {
     private APIMConfigurations apimConfigurations;
 
     public APIStateChangeWorkflow(ApiDAO apiDAO, APISubscriptionDAO apiSubscriptionDAO, WorkflowDAO workflowDAO,
-                                  APILifecycleManager apiLifecycleManager, APIGateway apiGateway,
-                                  boolean hasOwnGateway, APIMConfigurations apimConfigurations) {
+                                  APILifecycleManager apiLifecycleManager, APIGateway apiGateway/*,
+                                 /* boolean hasOwnGateway/*, APIMConfigurations apimConfigurations*/) {
         super(workflowDAO, Category.PUBLISHER, apiGateway);
         this.apiDAO = apiDAO;
         this.apiLifecycleManager = apiLifecycleManager;
         this.apiSubscriptionDAO = apiSubscriptionDAO;
         this.apiGateway = apiGateway;
-        this.hasOwnGateway = hasOwnGateway;
-        this.apimConfigurations = apimConfigurations;
+      //  this.hasOwnGateway = hasOwnGateway;
+      //  this.apimConfigurations = apimConfigurations;
 
     }
 
@@ -103,12 +103,23 @@ public class APIStateChangeWorkflow extends Workflow {
     public String getApiName() {
         return apiName;
     }
+
     public boolean isHasOwnGateway() {
         return hasOwnGateway;
     }
+
     public void setHasOwnGateway(boolean hasOwnGateway) {
         this.hasOwnGateway = hasOwnGateway;
     }
+
+    public APIMConfigurations getApimConfigurations() {
+        return apimConfigurations;
+    }
+
+    public void setApimConfigurations(APIMConfigurations apimConfigurations) {
+        this.apimConfigurations = apimConfigurations;
+    }
+
     public void setApiName(String apiName) {
         this.apiName = apiName;
     }

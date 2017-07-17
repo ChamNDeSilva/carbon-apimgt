@@ -17,7 +17,7 @@ spec:
         gateway: ${gatewayLabel}
     spec:
       containers:
-      - image: wso2apim-gateway-3.0.0-SNAPSHOT:3.0.0
+      - image: wso2apim-gateway:3.0.0
         name: ${containerName}
         imagePullPolicy: Always
         ports:

@@ -39,7 +39,7 @@ public interface ContainerBasedGatewayGenerator {
      *
      * @throws GatewayException     If there is a failure to update API in gateway
      */
-    String[] createKubernetesService(String gatewayServiceTemplate, String serviceName, String namespace)
+    void createKubernetesService(String gatewayServiceTemplate, String serviceName, String namespace)
             throws GatewayException, IOException;
 
     /**

@@ -46,7 +46,6 @@ import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.util.List;
 
-
 /**
  * This is responsible to handle the auto-created gateways in container Management system
  * Current supported CMS : Kubernetes, Openshift
@@ -84,10 +83,10 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
     }
 
     @Override
-    public String[] createKubernetesService(String serviceTemplate, String serviceName, String namespace)
+    public void createKubernetesService(String serviceTemplate, String serviceName, String namespace)
             throws GatewayException {
 
-        String[] accessURLs = new String[0];
+  //      String[] accessURLs = new String[0];
         
         if (masterURL != null) {
 
@@ -116,8 +115,8 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
                    //todo : return the Https and https URLs form here as an array.
                    // todo : check how we can get these access URLs at label creation.
                    //mock
-                   accessURLs[0] = "https://mygateway:9092";
-                   accessURLs[1] = "http://mygateway:9090";
+             //      accessURLs[0] = "https://mygateway:9092";
+              //     accessURLs[1] = "http://mygateway:9090";
 
                } else {
                    throw new GatewayException("Loaded Resource is not a Kubernetes Service ! " + resource,
@@ -133,7 +132,6 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
                         ExceptionCodes.TEMPLATE_FILE_EXCEPTION);
             }
         }
-        return accessURLs;
     }
 
     @Override

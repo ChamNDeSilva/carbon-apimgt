@@ -700,8 +700,7 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                 WorkflowExecutor executor = WorkflowExecutorFactory.getInstance()
                         .getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_API_STATE);
                 APIStateChangeWorkflow workflow = new APIStateChangeWorkflow(getApiDAO(), getApiSubscriptionDAO(),
-                        getWorkflowDAO(), getApiLifecycleManager(), getApiGateway(), originalAPI.hasOwnGateway(),
-                        apimConfigurations);
+                        getWorkflowDAO(), getApiLifecycleManager(), getApiGateway());
                 workflow.setApiName(originalAPI.getName());
                 workflow.setApiProvider(originalAPI.getProvider());
                 workflow.setApiVersion(originalAPI.getVersion());
@@ -720,6 +719,8 @@ public class APIPublisherImpl extends AbstractAPIManager implements APIPublisher
                 workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_TARGET_STATE, status);
                 workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_LC_INVOKER, getUsername());
                 workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_NAME, originalAPI.getId());
+                workflow.setAttribute(WorkflowConstants.ATTRIBUTE_API_HAS_OWN_GATEWAY,
+                        String.valueOf(originalAPI.hasOwnGateway()));
 
                 if (originalAPI.hasOwnGateway()) {
                     // then we have only one label
