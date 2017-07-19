@@ -11,33 +11,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-apiVersion: v1
-kind: Service
+#
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
-  name: ${serviceName}
+  name: activemq
   namespace: ${namespace}
   labels:
-    gateway: ${gatewayLabel}  # should have the auto-generated label as the value
-spec:
-  type: LoadBalancer
-  externalTrafficPolicy: Local
-  ports:
-    # ports that this service should serve on
-    -
-      name: 'pass-through-http'
-      port: 9090
-      targetPort: 9090
-      nodePort: 32001
-    -
-      name: 'pass-through-https'
-      port: 9092
-      targetPort: 9092
-      nodePort: 32002
-  status:
-    loadBalancer:
-      ingress:
-        - ip: ${loadBalancerIP}
-  # label keys and values that must match in order to receive traffic for this service
-  selector:
+    app: activemq
+    tier: prod
     gateway: ${gatewayLabel}
+spec:
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: activemq
+        tier: prod
+        gateway: ${gatewayLabel}
+    spec:
+      containers:
+      - image: docker.wso2.com/activemq 
+        name: activemq
+        imagePullPolicy: Never
 

@@ -233,7 +233,10 @@ public interface APIGateway {
      * Remove existing Gateway from the container Management System
      *
      * @param label auto-generated label of the original API
+     * @param apiId UUID of the API
      */
-    void removeContainerBasedGateway(String label) throws GatewayException;
+    void removeContainerBasedGateway(String label, String apiId) throws GatewayException;
+
+
 
 }

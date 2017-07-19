@@ -58,9 +58,10 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
     private String masterURL = apimConfigurations.getContainerGatewayConfigs().getMasterURL();
     private String carbonHome = System.getProperty(Constants.CARBON_HOME);
 
-    private String writeTemplateToFile(String template, String filename) throws GatewayException {
+    private String writeKubeConfigToFile(String template, String apiId, String filename) throws GatewayException {
 
-        String fileLocation = carbonHome + File.separator + "deployments" + File.separator + filename + ".yaml";
+        String fileLocation = carbonHome + File.separator + "deployments" + File.separator + apiId +  File.separator +
+                filename + ".yaml";
         File file = new File(fileLocation);
         try (Writer writer = new OutputStreamWriter(new FileOutputStream(file), "UTF-8");
              PrintWriter printWriter = new PrintWriter(writer)) {
@@ -82,8 +83,27 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
         return fileLocation;
     }
 
+    public static boolean deleteKubeConfig(File directory) {
+        if (directory.isDirectory()) {
+            File[] children = directory.listFiles();
+            boolean success = false;
+            if (children != null) {
+                for (int i = 0; i < children.length; i++) {
+                    success = deleteKubeConfig(children[i]);
+                }
+            }
+            if (!success) {
+                return false;
+            }
+        }
+        // either file or an empty directory
+        log.info("removing file or directory : " + directory.getName());
+        return directory.delete();
+
+    }
+
     @Override
-    public void createKubernetesService(String serviceTemplate, String serviceName, String namespace)
+    public void createContainerBasedService(String serviceTemplate, String apiId, String serviceName, String namespace)
             throws GatewayException {
 
   //      String[] accessURLs = new String[0];
@@ -94,7 +114,7 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
 
             Config config = new ConfigBuilder().build();
             KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
-            String fileLocation = writeTemplateToFile(serviceTemplate, serviceName);
+            String fileLocation = writeKubeConfigToFile(serviceTemplate, apiId, serviceName);
 
             try (FileInputStream fileInputStream = new FileInputStream(fileLocation);
                  OpenShiftClient client = kubernetesClient.adapt(OpenShiftClient.class)) {
@@ -135,13 +155,13 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
     }
 
     @Override
-    public void createKubernetesDeployment(String deploymentTemplate, String deploymentName, String namespace)
-            throws GatewayException {
+    public void createContainerBasedDeployment(String deploymentTemplate, String apiId, String deploymentName,
+                                        String namespace) throws GatewayException {
 
         if (masterURL != null) {
             Config config = new ConfigBuilder().build();
             KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
-            String fileLocation = writeTemplateToFile(deploymentTemplate, deploymentName);
+            String fileLocation = writeKubeConfigToFile(deploymentTemplate, apiId, deploymentName);
             List<HasMetadata> resources;
 
             try (FileInputStream fileInputStream = new FileInputStream(fileLocation);
@@ -178,7 +198,9 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
     }
 
     @Override
-    public void removeKubernetesGateway(String label) throws GatewayException {
+    public void removeContainerBasedGateway(String label, String apiId) throws GatewayException {
+
+        String directory = carbonHome + File.separator + "deployments" + File.separator + apiId;
 
         if (masterURL != null) {
             Config config = new ConfigBuilder().build();
@@ -189,12 +211,18 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
                 // Deleting the Service----------------
                 // cannot get the service by namespace as at this time user may have changed the namespace in configs.
                 // Therefore deleting it checking from all namespace
+
+                // This deletes the active-mq service as well.
                 client.services().inAnyNamespace().withLabel(label).delete();
 
-                //Deleting Pods
+                //Deleting Pods - this deletes the active-mq pod as well.
                 client.pods().inAnyNamespace().withLabel(label).delete();
 
-                log.info("Completed Deleting the Gateway from Container");
+                //remove the configuration files from the pack as well
+              // When removing the gateway, we need to remove the gateway deployment related to the particular ID
+                deleteKubeConfig(new File(directory));
+
+                log.info("Completed Deleting the Gateway and active-mq service from Container");
             } catch (KubernetesClientException e) {
                 throw new GatewayException("Error in Removing the Container based Gateway Resources",
                         ExceptionCodes.CONTAINER_GATEWAY_REMOVAL_FAILED);

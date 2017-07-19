@@ -122,7 +122,7 @@ public class APIGatewayPublisherImpl implements APIGateway {
         if (originalApiHadOwnGateway && !api.hasOwnGateway()) {
             // label is deleted beforehand.
             // to do this for deployment name and the service name we should use a convention
-            removeContainerBasedGateway("PERAPIGW-" + api.getId());
+            removeContainerBasedGateway("PERAPIGW-" + api.getId(), api.getId());
         }
     }
 
@@ -147,7 +147,7 @@ public class APIGatewayPublisherImpl implements APIGateway {
             if (originalApiHadOwnGateway && !api.hasOwnGateway()) {
                 // label is deleted beforehand.
                 // to do this for deployment name and the service name we should use a convention
-                removeContainerBasedGateway("PERAPIGW-" + api.getId());
+                removeContainerBasedGateway("PERAPIGW-" + api.getId(), api.getId());
             }
         }
 
@@ -168,7 +168,7 @@ public class APIGatewayPublisherImpl implements APIGateway {
         }
         if (api.hasOwnGateway()) {
             // Delete the Gateway - check how we can assume that we complete the deletion
-            removeContainerBasedGateway(api.getLabels().toArray()[0].toString());
+            removeContainerBasedGateway(api.getLabels().toArray()[0].toString(), api.getId());
 
         }
     }
@@ -187,7 +187,7 @@ public class APIGatewayPublisherImpl implements APIGateway {
 
         if (api.hasOwnGateway()) {
             // Delete the Gateway  - check how we can assume that we complete the deletion
-            removeContainerBasedGateway(api.getLabels().toArray()[0].toString());
+            removeContainerBasedGateway(api.getLabels().toArray()[0].toString(), api.getId());
         }
 
     }
@@ -498,16 +498,27 @@ public class APIGatewayPublisherImpl implements APIGateway {
 
          templateValues.put("namespace", apimConfigurations.getContainerGatewayConfigs().getNamespace());
          templateValues.put("gatewayLabel", label);
-         templateValues.put("serviceName", label + "-service");
-         templateValues.put("deploymentName", label + "-deployment");
-         templateValues.put("containerName", label + "-container");
+         templateValues.put("gatewayServiceName", label + "-service");
+         templateValues.put("gatewayDeploymentName", label + "-deployment");
+       //  templateValues.put("brokerServiceName", null); // service name is fixed and not a template value
+       //  templateValues.put("brokerDeploymentName", null); //deployment name is fixed and not a template value
+         templateValues.put("gatewayContainerName", label + "-container");
          templateValues.put("image", apimConfigurations.getContainerGatewayConfigs().getImage());
+         templateValues.put("apiGatewayUrl", apimConfigurations.getContainerGatewayConfigs().getApiCoreURL());
 
-         //This should return the access URL
-         kubernetesGateway.createKubernetesService(builder.getGatewayServiceTemplate(templateValues),
-                 templateValues.get("serviceName"), templateValues.get("namespace"));
-         kubernetesGateway.createKubernetesDeployment(builder.getGatewayDeploymentTemplate(templateValues),
-                 templateValues.get("deploymentName"), templateValues.get("namespace"));
+         //Create active-mq service
+         kubernetesGateway.createContainerBasedService(builder.getBrokerServiceTemplate(templateValues), apiId,
+                 null, templateValues.get("namespace"));
+         // Create active-mq deployment
+         kubernetesGateway.createContainerBasedDeployment(builder.getBrokerDeploymentTemplate(templateValues), apiId,
+                 null, templateValues.get("namespace"));
+
+         //Create gateway Service
+         kubernetesGateway.createContainerBasedService(builder.getGatewayServiceTemplate(templateValues), apiId,
+                 templateValues.get("gatewayServiceName"), templateValues.get("namespace"));
+         // Create gateway deployment
+         kubernetesGateway.createContainerBasedDeployment(builder.getGatewayDeploymentTemplate(templateValues), apiId,
+                 templateValues.get("gatewayDeploymentName"), templateValues.get("namespace"));
 
          // todo : need to update the labels as well with the access URLs
          // todo : Check whether we can do this at the creation stage of labels - After testing kube
@@ -516,11 +527,13 @@ public class APIGatewayPublisherImpl implements APIGateway {
 
     }
 
+
+
     @Override
-    public void removeContainerBasedGateway(String label) throws GatewayException {
+    public void removeContainerBasedGateway(String label, String apiId) throws GatewayException {
 
         KubernetesGatewayImpl kubernetesGateway = new KubernetesGatewayImpl();
-        kubernetesGateway.removeKubernetesGateway(label);
+        kubernetesGateway.removeContainerBasedGateway(label, apiId);
     }
 
 

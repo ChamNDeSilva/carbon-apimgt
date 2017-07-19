@@ -199,7 +199,7 @@ public class APIStateChangeWorkflow extends Workflow {
 
                     // No need to remove the auto-generated label since hasOwnGateway is true the label should be there
                     // remove gateway
-                    apiGateway.removeContainerBasedGateway(label);
+                    apiGateway.removeContainerBasedGateway(label, apiId);
                 }
             }
         } else if (WorkflowStatus.REJECTED == response.getWorkflowStatus()) {

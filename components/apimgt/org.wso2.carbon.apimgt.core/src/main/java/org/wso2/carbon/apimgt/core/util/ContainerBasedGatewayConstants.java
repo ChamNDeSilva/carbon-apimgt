@@ -23,8 +23,10 @@ package org.wso2.carbon.apimgt.core.util;
  */
 public final class ContainerBasedGatewayConstants {
 
-    public static final String SERVICE_TEMPLATE = "container_service_template.yaml";
-    public static final String DEPLOYMENT_TEMPLATE = "container_deployment_template.yaml";
+    public static final String GATEWAY_SERVICE_TEMPLATE = "container_service_template.yaml";
+    public static final String GATEWAY_DEPLOYMENT_TEMPLATE = "container_deployment_template.yaml";
+    public static final String BROKER_SERVICE_TEMPLATE = "activemq-service.yaml";
+    public static final String BROKER_DEPLOYMENT_TEMPLATE = "activemq-deployment.yaml";
 
 
 }

@@ -44,24 +44,26 @@ public class ContainerBasedGatewayTemplateBuilder {
     public static final String CLASS_PATH = "classpath";
     public static final String CLASS_PATH_RESOURCE_LOADER = "classpath.resource.loader.class";
     public static final String GATEWAY_LABEL = "gatewayName";
-    public static final String SERVICE_NAME = "serviceName";
-    private static final String DEPLOYMENT_NAME = "deploymentName";
-    private static final String CONTAINER_NAME = "containerName";
+    public static final String GATEWAY_SERVICE_NAME = "gatewayServiceName";
+    public static final String BROKER_SERVICE_NAME = "brokerServiceName";
+    private static final String GATEWAY_DEPLOYMENT_NAME = "gatewayDeploymentName";
+    private static final String BROKER_DEPLOYMENT_NAME = "brokerDeploymentName";
+    private static final String CONTAINER_NAME = "gatewayContainerName";
     private static final String NAMESPACE = "namespace";
     private static final String IMAGE = "image";
+    private static final String API_CORE_URL = "apiCoreUrl";
 
 
-    //todo: add ports
      /**
      * Set velocity context for Gateway Service.
      *
      * @param templateValues VelocityContext template values Map
      * @return Velocity Context Object
      */
-    public VelocityContext setServiceContextValues(Map<String, String> templateValues) {
+    public VelocityContext setGatewayServiceContextValues(Map<String, String> templateValues) {
 
         VelocityContext context = new VelocityContext();
-        context.put(SERVICE_NAME, templateValues.get("serviceName"));
+        context.put(GATEWAY_SERVICE_NAME, templateValues.get("gatewayServiceName"));
         context.put(NAMESPACE, templateValues.get("namespace"));
         context.put(GATEWAY_LABEL, templateValues.get("gatewayLabel"));
 
@@ -75,18 +77,35 @@ public class ContainerBasedGatewayTemplateBuilder {
      * @param templateValues VelocityContext template values Map
      * @return Velocity Context Object
      */
-    public VelocityContext setDeploymentContextValues(Map<String, String> templateValues) {
+    public VelocityContext setGatewayDeploymentContextValues(Map<String, String> templateValues) {
 
         VelocityContext context = new VelocityContext();
-        context.put(DEPLOYMENT_NAME, templateValues.get("deploymentName"));
+        context.put(GATEWAY_DEPLOYMENT_NAME, templateValues.get("gatewayDeploymentName"));
         context.put(NAMESPACE, templateValues.get("namespace"));
         context.put(GATEWAY_LABEL, templateValues.get("gatewayLabel"));
-        context.put(CONTAINER_NAME, templateValues.get("containerName"));
+        context.put(CONTAINER_NAME, templateValues.get("gatewayContainerName"));
         context.put(IMAGE, templateValues.get("image"));
+        context.put(API_CORE_URL, templateValues.get("apiGatewayUrl"));
 
         return context;
     }
 
+    /**
+     * Set velocity context for Broker for Service and deployment
+     *
+     * @param templateValues VelocityContext template values Map
+     * @return Velocity Context Object
+     */
+    public VelocityContext setBrokerContextValues(Map<String, String> templateValues) {
+
+        VelocityContext context = new VelocityContext();
+        //  context.put(BROKER_SERVICE_NAME, templateValues.get("brokerServiceName"));
+        //  context.put(BROKER_DEPLOYMENT_NAME, templateValues.get("brokerDeploymentName"));
+        context.put(NAMESPACE, templateValues.get("namespace"));
+        context.put(GATEWAY_LABEL, templateValues.get("gatewayLabel"));
+
+        return context;
+    }
 
     /**
      * Init velocity engine.
@@ -103,7 +122,7 @@ public class ContainerBasedGatewayTemplateBuilder {
     }
 
     /**
-     * Return service template for policy level.
+     * Return Gateway service template for policy level.
      *
      * @param serviceTemplateValues service template values map
      * @return Service Template as a String
@@ -113,13 +132,13 @@ public class ContainerBasedGatewayTemplateBuilder {
 
         StringWriter writer = new StringWriter();
         Template template = initVelocityEngine().getTemplate(cmsTemplateLocation +
-                ContainerBasedGatewayConstants.SERVICE_TEMPLATE);
-        template.merge(setServiceContextValues(serviceTemplateValues), writer);
+                ContainerBasedGatewayConstants.GATEWAY_SERVICE_TEMPLATE);
+        template.merge(setGatewayServiceContextValues(serviceTemplateValues), writer);
         return writer.toString();
     }
 
     /**
-     * Return deployment template for policy level.
+     * Return Gateway deployment template for policy level.
      *
      * @param deploymentTemplateValues service template values map
      * @return Deployment Template as a String
@@ -128,8 +147,39 @@ public class ContainerBasedGatewayTemplateBuilder {
 
         StringWriter writer = new StringWriter();
         Template template = initVelocityEngine().getTemplate(cmsTemplateLocation +
-                ContainerBasedGatewayConstants.DEPLOYMENT_TEMPLATE);
-        template.merge(setDeploymentContextValues(deploymentTemplateValues), writer);
+                ContainerBasedGatewayConstants.GATEWAY_DEPLOYMENT_TEMPLATE);
+        template.merge(setGatewayDeploymentContextValues(deploymentTemplateValues), writer);
+        return writer.toString();
+    }
+
+    /**
+     * Return Broker service template for policy level.
+     *
+     * @param serviceTemplateValues service template values map
+     * @return Service Template as a String
+     * @throws GatewayException If an error occurred when getting the Service template
+     */
+    public String getBrokerServiceTemplate(Map<String, String> serviceTemplateValues) throws GatewayException {
+
+        StringWriter writer = new StringWriter();
+        Template template = initVelocityEngine().getTemplate(cmsTemplateLocation +
+                ContainerBasedGatewayConstants.BROKER_SERVICE_TEMPLATE);
+        template.merge(setBrokerContextValues(serviceTemplateValues), writer);
+        return writer.toString();
+    }
+
+    /**
+     * Return Broker deployment template for policy level.
+     *
+     * @param deploymentTemplateValues service template values map
+     * @return Deployment Template as a String
+     */
+    public String getBrokerDeploymentTemplate(Map<String, String> deploymentTemplateValues) {
+
+        StringWriter writer = new StringWriter();
+        Template template = initVelocityEngine().getTemplate(cmsTemplateLocation +
+                ContainerBasedGatewayConstants.BROKER_DEPLOYMENT_TEMPLATE);
+        template.merge(setBrokerContextValues(deploymentTemplateValues), writer);
         return writer.toString();
     }
 }

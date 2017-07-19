@@ -35,33 +35,36 @@ public interface ContainerBasedGatewayGenerator {
      *
      * @param gatewayServiceTemplate Definition of the Service as a String
      * @param serviceName   Name of the Service
+     * @param apiId UUID of the API
      * @param namespace   namespace of the service
      *
      * @throws GatewayException     If there is a failure to update API in gateway
      */
-    void createKubernetesService(String gatewayServiceTemplate, String serviceName, String namespace)
+    void createContainerBasedService(String gatewayServiceTemplate, String apiId, String serviceName, String namespace)
             throws GatewayException, IOException;
 
     /**
      * Create the gateway deployment in Container Management System
      *
      *
-     * @param gatewayDeploymentTemplate   Definition of the Deployment as a String
+     * @param deploymentTemplate   Definition of the Deployment as a String
+     * @param apiId UUID of the API
      * @param deploymentName Name of the deployment
      * @param namespace Namespace of the deployment
      *
      * @throws GatewayException   If there is a failure to update API in gateway
      */
-    void createKubernetesDeployment(String gatewayDeploymentTemplate, String deploymentName, String namespace)
-            throws GatewayException;
+    void createContainerBasedDeployment(String deploymentTemplate, String apiId, String deploymentName,
+                                 String namespace) throws GatewayException;
 
     /**
-     * Remove the existing gateway from Container Management System
+     * Remove the existing gateway and Broker from Container Management System
      *
      * @param label   auto-generated label of gateway
+     * @param apiId   UUID of the API
      * @throws GatewayException   If there is a failure to update API in gateway
      */
-    void removeKubernetesGateway(String label) throws GatewayException;
+    void removeContainerBasedGateway(String label, String apiId) throws GatewayException;
 
 
 

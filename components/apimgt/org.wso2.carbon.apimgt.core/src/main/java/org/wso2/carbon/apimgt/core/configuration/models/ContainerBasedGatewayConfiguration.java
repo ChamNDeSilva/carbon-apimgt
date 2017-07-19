@@ -35,6 +35,9 @@ public class ContainerBasedGatewayConfiguration {
     @Element(description = "Name of the Docker Image of the Gateway")
     private String image = "wso2apim-gateway-3.0.0-SNAPSHOT:3.0.0";
 
+    @Element(description = "URL of API Core")
+    private String apiCoreURL = "https://localhost:9292";
+
     // todo : Add authentication configs
 
     public String getMasterURL() {
@@ -43,6 +46,10 @@ public class ContainerBasedGatewayConfiguration {
 
     public String getNamespace() {
             return namespace;
+        }
+
+    public String getApiCoreURL() {
+            return apiCoreURL;
         }
 
     public String getImage() {
