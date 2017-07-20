@@ -38,6 +38,11 @@ public class ContainerBasedGatewayConfiguration {
     @Element(description = "URL of API Core")
     private String apiCoreURL = "https://localhost:9292";
 
+    @Element(description = "Message Broker Host IP address")
+    private String brokerHost = "10.100.7.106";
+    // todo : change this to localhost ip address
+
+
     // todo : Add authentication configs
 
     public String getMasterURL() {
@@ -55,5 +60,11 @@ public class ContainerBasedGatewayConfiguration {
     public String getImage() {
         return image;
     }
+
+    public String getBrokerHost() {
+        return brokerHost;
+    }
+
+
 
     }

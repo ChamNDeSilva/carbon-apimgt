@@ -505,15 +505,9 @@ public class APIGatewayPublisherImpl implements APIGateway {
          templateValues.put("gatewayContainerName", label + "-container");
          templateValues.put("image", apimConfigurations.getContainerGatewayConfigs().getImage());
          templateValues.put("apiGatewayUrl", apimConfigurations.getContainerGatewayConfigs().getApiCoreURL());
+         templateValues.put("brokerHostIp", apimConfigurations.getContainerGatewayConfigs().getBrokerHost());
 
-         //Create active-mq service
-         kubernetesGateway.createContainerBasedService(builder.getBrokerServiceTemplate(templateValues), apiId,
-                 null, templateValues.get("namespace"));
-         // Create active-mq deployment
-         kubernetesGateway.createContainerBasedDeployment(builder.getBrokerDeploymentTemplate(templateValues), apiId,
-                 null, templateValues.get("namespace"));
-
-         //Create gateway Service
+            //Create gateway Service
          kubernetesGateway.createContainerBasedService(builder.getGatewayServiceTemplate(templateValues), apiId,
                  templateValues.get("gatewayServiceName"), templateValues.get("namespace"));
          // Create gateway deployment

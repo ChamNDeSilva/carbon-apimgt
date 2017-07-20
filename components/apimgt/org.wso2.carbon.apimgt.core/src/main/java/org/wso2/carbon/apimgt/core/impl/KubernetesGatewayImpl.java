@@ -60,7 +60,7 @@ public class KubernetesGatewayImpl implements ContainerBasedGatewayGenerator {
 
     private String writeKubeConfigToFile(String template, String apiId, String filename) throws GatewayException {
 
-        String fileLocation = carbonHome + File.separator + "deployments" + File.separator + apiId +  File.separator +
+        String fileLocation = carbonHome + File.separator + apiId +  File.separator +
                 filename + ".yaml";
         File file = new File(fileLocation);
         try (Writer writer = new OutputStreamWriter(new FileOutputStream(file), "UTF-8");

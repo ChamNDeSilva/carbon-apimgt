@@ -18,6 +18,7 @@ metadata:
   namespace: ${namespace}
   labels:
     gateway: ${gatewayLabel}  # should have the auto-generated label as the value
+    tier: prod
 spec:
   type: NodePort
   ports:

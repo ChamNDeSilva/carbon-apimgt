@@ -19,6 +19,7 @@ metadata:
   labels:
   # should have the auto-generated label as the value
     gateway: ${gatewayLabel}
+    tier: prod
 spec:
   replicas: 3
   strategy:
@@ -30,12 +31,17 @@ spec:
         gateway: ${gatewayLabel}
     spec:
       containers:
-      - name: ${containerName}
-        image: wso2apim-gateway:3.0.0
-        imagePullPolicy: Always
+      -
+        name: ${containerName}
+        image: wso2apim-gateway:v3.0.0
+        #imagePullPolicy: Always
         env:
-        - name: API_CORE_URL
+        -
+          name: API_CORE_URL
           value: ${apiCoreUrl}
+        -
+          name: MESSAGE_BROKER_HOST
+          value: ${messageBrokerUrl}
         ports:
         -
           containerPort: 9090
